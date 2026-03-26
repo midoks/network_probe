@@ -1,0 +1,24 @@
+dev: true
+title: zzz
+frequency: 3
+dirfilter:
+- tmp
+- .git
+- public
+- scripts
+- target
+- logs
+- templates
+ext:
+- rs
+lang: rust
+enablerun: true
+action:
+  before:
+  - find . -name ".DS_Store" -print -delete
+  - echo "zzz start"
+  after:
+  - echo "zzz end"
+  exit:
+  - echo "exit"
+link: https://github.com/midoks/zzz
