@@ -14,30 +14,17 @@
 - **命令行**: 完整的 CLI 工具支持
 - **高性能**: 异步 I/O，支持并发操作
 
-## 安装和构建
+## 快速开始
+
+### 安装
 
 ```bash
-# 克隆项目
-cd network_probe
-
-# 构建项目
 cargo build --release
-
-# 运行测试
-cargo test
-
-# 运行性能基准测试
-cargo bench
 ```
 
-## 命令行使用
-
-### 基本用法
+### 命令行使用
 
 ```bash
-# 查看帮助
-./target/release/network_probe --help
-
 # Ping 测试
 ./target/release/network_probe ping google.com --count 4
 
@@ -53,126 +40,63 @@ cargo bench
 # 路由跟踪
 ./target/release/network_probe traceroute google.com
 
-# 端口扫描
-./target/release/network_probe port-scan 127.0.0.1 --range 1-1000
-```
-
-### 高级用法
-
-```bash
-# 设置日志级别为调试模式
-./target/release/network_probe --log-level debug ping localhost
-
-# 自定义超时时间
-./target/release/network_probe tcping example.com --port 80 --timeout 5
-
-# 使用特定 DNS 服务器
-./target/release/network_probe dns google.com --query-type A --nameserver 8.8.8.8
-
-# 测试多个网站
-./target/release/network_probe website https://httpbin.org/status/200 --method GET
-```
-
-## API 服务器使用
-
-### 启动服务器
-
-```bash
-# 启动 API 服务器（默认端口 8080）
-./target/release/network_probe server
-
-# 指定主机和端口
+# 启动 API 服务器
 ./target/release/network_probe server --host 0.0.0.0 --port 8080
 ```
 
-### API 端点
+### API 使用
 
-#### 健康检查
-```bash
-curl http://localhost:8080/api/health
-```
+启动服务器后，可以使用以下 API 端点：
 
-#### Ping 测试
 ```bash
+# Ping 测试
 curl -X POST http://localhost:8080/api/ping \
   -H "Content-Type: application/json" \
   -d '{"host": "google.com", "count": 4}'
-```
 
-#### TCP 连接测试
-```bash
-curl -X POST http://localhost:8080/api/tcping \
-  -H "Content-Type: application/json" \
-  -d '{"host": "google.com", "port": 443, "count": 3}'
-```
-
-#### 网站测试
-```bash
+# 网站测试
 curl -X POST http://localhost:8080/api/website \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://google.com", "method": "GET"}'
-```
+  -d '{"url": "https://google.com"}'
 
-#### DNS 查询
-```bash
+# DNS 查询
 curl -X POST http://localhost:8080/api/dns \
   -H "Content-Type: application/json" \
   -d '{"domain": "google.com", "query_type": "A"}'
+
+# 健康检查
+curl http://localhost:8080/api/health
 ```
 
-#### 路由跟踪
+### WebSocket 使用
+
+连接到 `ws://localhost:8080/ws` 可以发送以下格式的消息：
+
+```json
+// Ping 测试
+{"type": "Ping", "data": {"host": "google.com", "count": 4}}
+
+// 网站测试
+{"type": "Website", "data": {"url": "https://google.com"}}
+
+// DNS 查询
+{"type": "Dns", "data": {"domain": "google.com", "query_type": "A"}}
+```
+
+## 性能测试
+
+运行性能基准测试：
+
 ```bash
-curl -X POST http://localhost:8080/api/traceroute \
-  -H "Content-Type: application/json" \
-  -d '{"host": "google.com", "max_hops": 30}'
+cargo bench
 ```
 
-## WebSocket 使用
-
-连接到 `ws://localhost:8080/ws`，可以发送以下格式的消息：
-
-### Ping 测试
-```json
-{
-  "type": "Ping",
-  "data": {
-    "host": "google.com",
-    "count": 4
-  }
-}
-```
-
-### 网站测试
-```json
-{
-  "type": "Website",
-  "data": {
-    "url": "https://google.com",
-    "method": "GET"
-  }
-}
-```
-
-### DNS 查询
-```json
-{
-  "type": "Dns",
-  "data": {
-    "domain": "google.com",
-    "query_type": "A"
-  }
-}
-```
-
-## 性能测试结果
-
-运行 `cargo bench` 的性能测试结果：
-
-- **Ping 测试**: ~470ns（本地回环）
-- **TCPing 测试**: ~440μs
-- **网站测试**: ~2-8ms
-- **DNS 查询**: ~30-70ms
-- **并发操作**: ~500μs
+测试结果示例：
+- Ping 测试：~470ns（本地回环）
+- TCPing 测试：~440μs
+- 网站测试：~2-8ms
+- DNS 查询：~30-70ms
+- 并发操作：~500μs
 
 ## 项目结构
 
@@ -186,15 +110,13 @@ network_probe/
 │   │   ├── traceroute.rs # 路由跟踪
 │   │   └── dns.rs       # DNS 查询
 │   ├── api/             # RESTful API 接口
-│   ├── websocket/       # WebSocket 接口
-│   ├── cli/             # 命令行接口
-│   ├── utils/           # 工具函数和错误处理
-│   ├── main.rs          # 主程序入口
-│   └── lib.rs           # 库入口
+│   ├── websocket/         # WebSocket 接口
+│   ├── cli/              # 命令行接口
+│   ├── utils/            # 工具函数
+│   └── main.rs           # 主程序入口
 ├── tests/               # 集成测试
 ├── benches/             # 性能基准测试
-├── Cargo.toml           # 项目配置
-└── README.md            # 项目文档
+└── Cargo.toml          # 项目配置
 ```
 
 ## 技术栈
@@ -207,7 +129,15 @@ network_probe/
 - **命令行解析**: clap
 - **序列化**: serde
 - **日志**: env_logger
-- **基准测试**: criterion
+
+## 优化特性
+
+- **异步 I/O**: 所有网络操作都是异步的
+- **连接池**: HTTP 客户端使用连接池复用
+- **并发支持**: 支持并发执行多个测试
+- **内存优化**: 使用零拷贝和内存池技术
+- **错误处理**: 完善的错误处理和恢复机制
+- **超时控制**: 所有操作都支持超时设置
 
 ## 使用场景
 
@@ -216,43 +146,7 @@ network_probe/
 - **故障排查**: 诊断网络连接问题
 - **安全扫描**: 端口扫描和服务发现
 - **DNS 验证**: 验证 DNS 配置和解析
-- **API 服务**: 提供网络测试能力的微服务
-
-## 开发指南
-
-### 添加新功能
-
-1. 在 `src/modules/` 中创建新的模块
-2. 实现相应的配置结构和结果结构
-3. 添加到 API 和 CLI 接口
-4. 编写单元测试和集成测试
-5. 添加性能基准测试
-
-### 运行测试
-
-```bash
-# 运行所有测试
-cargo test
-
-# 运行特定模块测试
-cargo test modules::ping
-
-# 运行集成测试
-cargo test --test integration_tests
-```
-
-### 性能优化
-
-- 使用异步 I/O 避免阻塞
-- 实现连接池复用
-- 合理使用并发
-- 优化内存分配
-- 添加缓存机制
 
 ## 许可证
 
 MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request 来改进这个项目！
