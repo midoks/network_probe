@@ -1,22 +1,9 @@
 project_name: network-probe
 version: 2
-before:
-  hooks:
-    - go mod tidy
 builds:
   - id: network-probe
     binary: network-probe
     builder: rust
-    targets:
-      - x86_64-unknown-linux-gnu
-      - x86_64-unknown-linux-musl
-      - aarch64-unknown-linux-gnu
-      - aarch64-unknown-linux-musl
-      - i686-unknown-linux-gnu
-      - x86_64-apple-darwin
-      - aarch64-apple-darwin
-      - x86_64-pc-windows-gnu
-      - x86_64-pc-windows-msvc
     flags:
       - --release
     env:

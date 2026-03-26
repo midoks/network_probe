@@ -66,3 +66,38 @@ harness = false
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[package.metadata.deb]
+maintainer = "Your Name <your.email@example.com>"
+copyright = "2024, Your Name <your.email@example.com>"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+A comprehensive network testing tool that supports ping, tcping, \
+traceroute, DNS queries, website testing, and port scanning."""
+depends = "$auto"
+section = "net"
+priority = "optional"
+assets = [
+    ["target/release/network-probe", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/network-probe/", "644"],
+    ["config/api_node.yaml", "etc/network-probe/", "644"],
+]
+conf-files = [
+    "/etc/network-probe/api_node.yaml"
+]
+
+[package.metadata.rpm]
+package = "network-probe"
+maintainer = "Your Name <your.email@example.com>"
+license = "MIT"
+url = "https://github.com/your-username/network-probe"
+summary = "A comprehensive network testing tool"
+description = """\
+A comprehensive network testing tool that supports ping, tcping, \
+traceroute, DNS queries, website testing, and port scanning."""
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+network-probe = { path = "/usr/bin/network-probe" }

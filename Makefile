@@ -1,4 +1,4 @@
-.PHONY: help build test release clean install uninstall release-local release-check
+.PHONY: help build test release clean install uninstall release-local release-check build-linux build-macos build-windows
 
 help:
 	@echo "Network Probe - Makefile commands:"
@@ -10,8 +10,14 @@ help:
 	@echo ""
 	@echo "Release:"
 	@echo "  make release        - Build release binary"
-	@echo "  make release-local  - Run goreleaser locally (skip publishing)"
-	@echo "  make release-check  - Check goreleaser configuration"
+	@echo "  make build-linux    - Build for Linux (x86_64)"
+	@echo "  make build-macos    - Build for macOS (x86_64 and arm64)"
+	@echo "  make build-windows  - Build for Windows (x86_64)"
+	@echo ""
+	@echo "Packaging:"
+	@echo "  make package-deb    - Build Debian package"
+	@echo "  make package-rpm    - Build RPM package"
+	@echo "  make package-all    - Build all packages"
 	@echo ""
 	@echo "Installation:"
 	@echo "  make install        - Install the binary (requires sudo)"
@@ -39,21 +45,35 @@ uninstall:
 	@cargo uninstall network-probe
 	@echo "Network Probe uninstalled successfully!"
 
-release-local:
-	@echo "Building release packages locally..."
-	@goreleaser release --snapshot --clean
+build-linux:
+	@echo "Building for Linux x86_64..."
+	cargo build --release --target x86_64-unknown-linux-gnu
+	@echo "Linux binary built at target/x86_64-unknown-linux-gnu/release/network-probe"
 
-release-check:
-	@echo "Checking goreleaser configuration..."
-	@goreleaser check
+build-macos:
+	@echo "Building for macOS x86_64..."
+	cargo build --release --target x86_64-apple-darwin
+	@echo "Building for macOS arm64..."
+	cargo build --release --target aarch64-apple-darwin
+	@echo "macOS binaries built at target/x86_64-apple-darwin/release/ and target/aarch64-apple-darwin/release/"
 
-release-snapshot:
-	@echo "Building snapshot release..."
-	@goreleaser release --snapshot --clean --skip-publish
+build-windows:
+	@echo "Building for Windows x86_64..."
+	cargo build --release --target x86_64-pc-windows-gnu
+	@echo "Windows binary built at target/x86_64-pc-windows-gnu/release/network-probe.exe"
 
-release-publish:
-	@echo "Building and publishing release..."
-	@goreleaser release --clean
+package-deb:
+	@echo "Building Debian package..."
+	cargo deb
+	@echo "Debian package built at target/debian/"
+
+package-rpm:
+	@echo "Building RPM package..."
+	cargo rpm build
+	@echo "RPM package built at target/release/rpmbuild/RPMS/"
+
+package-all: package-deb package-rpm
+	@echo "All packages built successfully!"
 
 docker-build:
 	@echo "Building Docker image..."
