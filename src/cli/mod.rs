@@ -124,6 +124,28 @@ pub enum Commands {
         #[arg(short, long, default_value = "1000")]
         timeout: u64,
     },
+
+    /// Install as a systemd service
+    Install {
+        /// Server host
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        
+        /// Server port
+        #[arg(long, default_value = "8080")]
+        port: u16,
+        
+        /// Service name
+        #[arg(long, default_value = "network-probe")]
+        service_name: String,
+    },
+
+    /// Uninstall systemd service
+    Uninstall {
+        /// Service name
+        #[arg(long, default_value = "network-probe")]
+        service_name: String,
+    },
 }
 
 pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
@@ -150,6 +172,12 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
         }
         Commands::PortScan { host, range, timeout } => {
             handle_port_scan(host, range, Duration::from_millis(timeout)).await
+        }
+        Commands::Install { host, port, service_name } => {
+            handle_install(host, port, service_name).await
+        }
+        Commands::Uninstall { service_name } => {
+            handle_uninstall(service_name).await
         }
     }
 }
@@ -413,4 +441,136 @@ fn parse_port_range(range: &str) -> anyhow::Result<Vec<u16>> {
         let port: u16 = range.parse()?;
         Ok(vec![port])
     }
+}
+
+async fn handle_install(host: String, port: u16, service_name: String) -> anyhow::Result<()> {
+    println!("Installing systemd service '{}'...", service_name);
+    
+    let service_file_path = format!("/etc/systemd/system/{}.service", service_name);
+    
+    let current_exe = std::env::current_exe()
+        .map_err(|e| anyhow::anyhow!("Failed to get current executable path: {}", e))?;
+    let exe_path = current_exe.to_string_lossy().to_string();
+    
+    let service_content = format!(
+        r#"[Unit]
+Description=Network Probe Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={}
+ExecStart={} server --host {} --port {}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+"#,
+        std::env::current_dir()
+            .map(|d| d.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "/".to_string()),
+        exe_path,
+        host,
+        port
+    );
+    
+    let service_dir = "/etc/systemd/system";
+    if !std::path::Path::new(service_dir).exists() {
+        return Err(anyhow::anyhow!("Systemd service directory {} does not exist. This command must be run on Linux with systemd.", service_dir));
+    }
+    
+    std::fs::write(&service_file_path, service_content)
+        .map_err(|e| anyhow::anyhow!("Failed to write service file: {}", e))?;
+    
+    println!("Service file created at: {}", service_file_path);
+    
+    let reload_status = std::process::Command::new("systemctl")
+        .args(["daemon-reload"])
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run systemctl daemon-reload: {}", e))?;
+    
+    if !reload_status.success() {
+        return Err(anyhow::anyhow!("systemctl daemon-reload failed"));
+    }
+    
+    println!("Systemd daemon reloaded");
+    
+    let enable_status = std::process::Command::new("systemctl")
+        .args(["enable", &service_name])
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to enable service: {}", e))?;
+    
+    if !enable_status.success() {
+        return Err(anyhow::anyhow!("Failed to enable service"));
+    }
+    
+    println!("Service '{}' enabled", service_name);
+    
+    let start_status = std::process::Command::new("systemctl")
+        .args(["start", &service_name])
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to start service: {}", e))?;
+    
+    if !start_status.success() {
+        return Err(anyhow::anyhow!("Failed to start service"));
+    }
+    
+    println!("Service '{}' started successfully", service_name);
+    println!("\nTo check service status: systemctl status {}", service_name);
+    println!("To view logs: journalctl -u {} -f", service_name);
+    println!("To stop service: systemctl stop {}", service_name);
+    println!("To restart service: systemctl restart {}", service_name);
+    
+    Ok(())
+}
+
+async fn handle_uninstall(service_name: String) -> anyhow::Result<()> {
+    println!("Uninstalling systemd service '{}'...", service_name);
+    
+    let service_file_path = format!("/etc/systemd/system/{}.service", service_name);
+    
+    let stop_status = std::process::Command::new("systemctl")
+        .args(["stop", &service_name])
+        .status();
+    
+    if let Ok(status) = stop_status {
+        if status.success() {
+            println!("Service '{}' stopped", service_name);
+        }
+    }
+    
+    let disable_status = std::process::Command::new("systemctl")
+        .args(["disable", &service_name])
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to disable service: {}", e))?;
+    
+    if !disable_status.success() {
+        return Err(anyhow::anyhow!("Failed to disable service"));
+    }
+    
+    println!("Service '{}' disabled", service_name);
+    
+    if std::path::Path::new(&service_file_path).exists() {
+        std::fs::remove_file(&service_file_path)
+            .map_err(|e| anyhow::anyhow!("Failed to remove service file: {}", e))?;
+        println!("Service file removed: {}", service_file_path);
+    } else {
+        println!("Service file not found: {}", service_file_path);
+    }
+    
+    let reload_status = std::process::Command::new("systemctl")
+        .args(["daemon-reload"])
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run systemctl daemon-reload: {}", e))?;
+    
+    if !reload_status.success() {
+        return Err(anyhow::anyhow!("systemctl daemon-reload failed"));
+    }
+    
+    println!("Systemd daemon reloaded");
+    println!("Service '{}' uninstalled successfully", service_name);
+    
+    Ok(())
 }
