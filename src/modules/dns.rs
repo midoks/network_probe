@@ -176,6 +176,7 @@ impl DnsService {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn resolve(&self, domain: &str) -> Result<Vec<String>> {
         let config = DnsConfig {
             domain: domain.to_string(),
@@ -191,6 +192,7 @@ impl DnsService {
         Ok(ips)
     }
 
+    #[allow(dead_code)]
     pub async fn check_dns_propagation(&self, domain: &str, nameservers: Vec<&str>) -> Result<Vec<DnsQueryResult>> {
         let mut results = Vec::new();
         

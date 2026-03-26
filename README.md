@@ -74,7 +74,7 @@ curl http://localhost:8080/api/health
 
 ```json
 // Ping 测试
-{"type": "Ping", "data": {"host": "google.com", "count": 4}}
+{"type": "Ping", "data": {"host": "baidu.com", "count": 4}}
 
 // 网站测试
 {"type": "Website", "data": {"url": "https://google.com"}}

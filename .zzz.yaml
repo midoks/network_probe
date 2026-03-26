@@ -12,13 +12,13 @@ dirfilter:
 ext:
 - rs
 lang: rust
-enablerun: true
+enablerun: false
 action:
   before:
   - find . -name ".DS_Store" -print -delete
-  - echo "zzz start"
+  - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | xargs kill -9
   after:
-  - echo "zzz end"
+  - ./target/release/network_probe server --host 0.0.0.0 --port 8080 &
   exit:
-  - echo "exit"
+  - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | xargs kill -9
 link: https://github.com/midoks/zzz
