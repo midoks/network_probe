@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"network-probe/internal/api"
+	"network-probe/internal/config"
 	"network-probe/internal/modules"
 )
 
@@ -384,21 +385,37 @@ func handleDns(cli *Cli) error {
 
 // handleServer 处理 server 命令
 func handleServer(cli *Cli) error {
-	fmt.Printf("Starting API server on %s:%d...\n", cli.Host, cli.Port)
+	// 加载配置
+	cfg, err := config.LoadConfig(config.GetConfigPath())
+	if err != nil {
+		fmt.Printf("Warning: failed to load config: %v, using command line arguments\n", err)
+		cfg = &config.Config{
+			Port: cli.Port,
+		}
+	}
+
+	// 使用配置文件中的端口，如果命令行指定了端口则使用命令行的
+	port := cfg.Port
+	if cli.Port != 8080 {
+		port = cli.Port
+	}
+
+	fmt.Printf("Starting API server on %s:%d...\n", cli.Host, port)
 
 	server := api.NewServer()
 
-	fmt.Printf("Server listening on http://%s:%d\n", cli.Host, cli.Port)
+	fmt.Printf("Server listening on http://%s:%d\n", cli.Host, port)
 	fmt.Println("API endpoints:")
 	fmt.Println("  POST /api/ping - ICMP ping test")
 	fmt.Println("  POST /api/tcping - TCP connection test")
 	fmt.Println("  POST /api/website - Website test")
 	fmt.Println("  POST /api/traceroute - Traceroute")
 	fmt.Println("  POST /api/dns - DNS query")
+	fmt.Println("  POST /api/mtr - MTR test")
 	fmt.Println("  GET  /api/health - Health check")
 	fmt.Println("  GET  /api/status - Service status")
 
-	return server.Run(fmt.Sprintf("%s:%d", cli.Host, cli.Port))
+	return server.Run(fmt.Sprintf("%s:%d", cli.Host, port))
 }
 
 // handleMtr 处理 mtr 命令

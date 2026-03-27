@@ -25,14 +25,14 @@ func NewWebsiteTestConfig() *WebsiteTestConfig {
 
 // WebsiteTestResult 表示网站测试结果
 type WebsiteTestResult struct {
-	URL             string
-	Status          int
-	StatusText      string
-	ResponseTime    float64
-	ContentLength   int64
-	ContentType     string
-	RedirectURL     string
-	Error           string
+	URL           string
+	Status        int
+	StatusText    string
+	ResponseTime  float64
+	ContentLength int64
+	ContentType   string
+	RedirectURL   string
+	Error         string
 }
 
 // WebsiteTestService 表示网站测试服务

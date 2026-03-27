@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"network-probe/internal/config"
 	"network-probe/internal/modules"
 )
 
@@ -43,6 +46,7 @@ type WebSocketResponse struct {
 // Server 表示 API 服务器
 type Server struct {
 	router *gin.Engine
+	config *config.Config
 }
 
 // NewServer 创建一个新的 API 服务器
@@ -50,11 +54,24 @@ func NewServer() *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
+	// 加载配置
+	cfg, err := config.LoadConfig(config.GetConfigPath())
+	if err != nil {
+		fmt.Printf("Warning: failed to load config: %v, using defaults\n", err)
+		cfg = &config.Config{
+			Port:            8080,
+			NodeID:          "default",
+			Secret:          "",
+			ReportEndpoints: []string{},
+		}
+	}
+
 	// 配置 CORS
 	router.Use(cors.Default())
 
 	server := &Server{
 		router: router,
+		config: cfg,
 	}
 
 	// 设置路由
@@ -65,12 +82,13 @@ func NewServer() *Server {
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
-	// 健康检查
+	// 健康检查（不需要认证）
 	s.router.GET("/api/health", s.healthCheck)
 	s.router.GET("/api/status", s.status)
 
-	// API 路由组
+	// API 路由组（需要认证）
 	api := s.router.Group("/api")
+	api.Use(s.authMiddleware())
 	{
 		api.POST("/ping", s.handlePing)
 		api.POST("/tcping", s.handleTcping)
@@ -85,8 +103,67 @@ func (s *Server) setupRoutes() {
 		c.String(http.StatusOK, "Network Probe API Server")
 	})
 
-	// WebSocket 路由
-	s.router.GET("/ws", s.handleWebSocket)
+	// WebSocket 路由（需要认证）
+	s.router.GET("/ws", s.authMiddleware(), s.handleWebSocket)
+}
+
+// authMiddleware 认证中间件
+func (s *Server) authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 如果没有配置 secret，则跳过认证
+		if s.config.Secret == "" {
+			c.Next()
+			return
+		}
+
+		// 从请求头获取认证信息
+		nodeID := c.GetHeader("X-Node-ID")
+		secret := c.GetHeader("X-Secret")
+
+		// 验证认证信息
+		if nodeID != s.config.NodeID || secret != s.config.Secret {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// reportToEndpoints 上报数据到配置的端点
+func (s *Server) reportToEndpoints(data interface{}) {
+	if len(s.config.ReportEndpoints) == 0 {
+		return
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Printf("Failed to marshal report data: %v\n", err)
+		return
+	}
+
+	for _, endpoint := range s.config.ReportEndpoints {
+		go func(ep string) {
+			req, err := http.NewRequest("POST", ep, bytes.NewBuffer(jsonData))
+			if err != nil {
+				fmt.Printf("Failed to create request to %s: %v\n", ep, err)
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Node-ID", s.config.NodeID)
+			req.Header.Set("X-Secret", s.config.Secret)
+
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Printf("Failed to report to %s: %v\n", ep, err)
+				return
+			}
+			defer resp.Body.Close()
+		}(endpoint)
+	}
 }
 
 // healthCheck 健康检查

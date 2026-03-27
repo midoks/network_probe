@@ -16,9 +16,10 @@ enablerun: true
 action:
   before:
   - find . -name ".DS_Store" -print -delete
+  - gofmt -w ./
   after:
   - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | xargs kill -9
-  - sudo ./network_probe server &
+  - ./network_probe server &
   exit:
   - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | sudo xargs kill -9
   - rm -rf ./network_probe
