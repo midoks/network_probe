@@ -10,7 +10,7 @@ dirfilter:
 - logs
 - templates
 ext:
-- rs
+- go
 lang: golang
 enablerun: true
 action:
@@ -18,7 +18,8 @@ action:
   - find . -name ".DS_Store" -print -delete
   after:
   - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | xargs kill -9
-  - ./network_probe server &
+  - sudo ./network_probe server &
   exit:
-  - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | xargs kill -9
+  - ps -ef|grep 'network_probe server'| grep -v grep | awk '{print $2}' | sudo xargs kill -9
+  - rm -rf ./network_probe
 link: https://github.com/midoks/zzz

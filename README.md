@@ -93,8 +93,8 @@ sudo ./network_probe ping www.baidu.com -c 10 -t 3
 测试到特定端口的 TCP 连接：
 
 ```bash
-./network_probe tcping example.com -p 80
-./network_probe tcping example.com -p 443 -c 10 -t 5
+./network_probe tcping baidu.com -p 80
+./network_probe tcping baidu.com -p 443 -c 10 -t 5
 ```
 
 参数：
@@ -107,8 +107,8 @@ sudo ./network_probe ping www.baidu.com -c 10 -t 3
 测试网站可用性和响应时间：
 
 ```bash
-./network_probe website https://example.com
-./network_probe website https://example.com -m POST -t 60 -f
+./network_probe website https://baidu.com
+./network_probe website https://baidu.com -m POST -t 60 -f
 ```
 
 参数：
@@ -121,8 +121,8 @@ sudo ./network_probe ping www.baidu.com -c 10 -t 3
 追踪数据包到达目标的路径（需要 root 权限）：
 
 ```bash
-sudo ./network_probe traceroute example.com
-sudo ./network_probe traceroute example.com -m 20 -p icmp
+sudo ./network_probe traceroute baidu.com
+sudo ./network_probe traceroute baidu.com -m 20 -p icmp
 ```
 
 参数：
@@ -134,9 +134,9 @@ sudo ./network_probe traceroute example.com -m 20 -p icmp
 执行 DNS 记录查询：
 
 ```bash
-./network_probe dns example.com
-./network_probe dns example.com -t MX
-./network_probe dns example.com -t A -n 8.8.8.8
+./network_probe dns baidu.com
+./network_probe dns baidu.com -t MX
+./network_probe dns baidu.com -t A -n 8.8.8.8
 ```
 
 参数：

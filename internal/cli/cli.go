@@ -197,6 +197,24 @@ func Run() error {
 	uninstallCmd.Flags().StringVarP(&cli.ServiceName, "service-name", "s", "network-probe", "Service name")
 	rootCmd.AddCommand(uninstallCmd)
 
+	// 添加 mtr 命令
+	mtrCmd := &cobra.Command{
+		Use:   "mtr",
+		Short: "Perform mtr (My TraceRoute) test",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("mtr command requires a host argument")
+			}
+			cli.Command = "mtr"
+			cli.Host = args[0]
+			return handleMtr(cli)
+		},
+	}
+	mtrCmd.Flags().IntVarP(&cli.MaxHops, "max-hops", "m", 30, "Maximum number of hops")
+	mtrCmd.Flags().IntVarP(&cli.Count, "count", "c", 10, "Number of packets per hop")
+	mtrCmd.Flags().IntVarP(&cli.Timeout, "interval", "i", 1, "Interval between packets (seconds)")
+	rootCmd.AddCommand(mtrCmd)
+
 	// 执行命令
 	return rootCmd.Execute()
 }
@@ -381,6 +399,42 @@ func handleServer(cli *Cli) error {
 	fmt.Println("  GET  /api/status - Service status")
 
 	return server.Run(fmt.Sprintf("%s:%d", cli.Host, cli.Port))
+}
+
+// handleMtr 处理 mtr 命令
+func handleMtr(cli *Cli) error {
+	fmt.Printf("MTR testing to %s...\n", cli.Host)
+
+	service := modules.NewMtrService()
+	config := modules.NewMtrConfig()
+	config.Host = cli.Host
+	config.MaxHops = cli.MaxHops
+	config.Count = cli.Count
+	config.Interval = cli.Timeout
+
+	result, err := service.Mtr(config)
+	if err != nil {
+		fmt.Printf("MTR failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("MTR results for %s:\n", result.Host)
+	fmt.Println("  Hops:")
+	fmt.Println("    Hop  Hostname           IP              Loss%   Snt   Last   Avg   Best   Wrst   StDev")
+	for _, hop := range result.Hops {
+		hostname := hop.Hostname
+		if hostname == "" {
+			hostname = "*"
+		}
+		ip := hop.IP
+		if ip == "" {
+			ip = "*"
+		}
+		fmt.Printf("    %2d   %-15s  %-15s  %4.1f%%   %3d   %4.1f   %4.1f   %4.1f   %4.1f   %4.1f\n",
+			hop.Hop, hostname, ip, hop.Loss, hop.Snt, hop.Last, hop.Avg, hop.Best, hop.Wrst, hop.StDev)
+	}
+
+	return nil
 }
 
 // handlePortScan 处理 port-scan 命令

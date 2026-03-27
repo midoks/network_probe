@@ -77,6 +77,7 @@ func (s *Server) setupRoutes() {
 		api.POST("/website", s.handleWebsite)
 		api.POST("/traceroute", s.handleTraceroute)
 		api.POST("/dns", s.handleDns)
+		api.POST("/mtr", s.handleMtr)
 	}
 
 	// 根路径
@@ -297,6 +298,47 @@ func (s *Server) handleDns(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// handleMtr 处理 mtr 请求
+func (s *Server) handleMtr(c *gin.Context) {
+	var req struct {
+		Host     string `json:"host" binding:"required"`
+		MaxHops  int    `json:"max_hops"`
+		Count    int    `json:"count"`
+		Interval int    `json:"interval"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 设置默认值
+	if req.MaxHops == 0 {
+		req.MaxHops = 30
+	}
+	if req.Count == 0 {
+		req.Count = 10
+	}
+	if req.Interval == 0 {
+		req.Interval = 1
+	}
+
+	service := modules.NewMtrService()
+	config := modules.NewMtrConfig()
+	config.Host = req.Host
+	config.MaxHops = req.MaxHops
+	config.Count = req.Count
+	config.Interval = req.Interval
+
+	result, err := service.Mtr(config)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // handleWebSocket 处理 WebSocket 连接
 func (s *Server) handleWebSocket(c *gin.Context) {
 	// 升级 HTTP 连接为 WebSocket
@@ -346,6 +388,8 @@ func (s *Server) processWebSocketMessage(msg WebSocketMessage) WebSocketResponse
 		return s.handleWebSocketTraceroute(msg.Payload)
 	case "dns":
 		return s.handleWebSocketDns(msg.Payload)
+	case "mtr":
+		return s.handleWebSocketMtr(msg.Payload)
 	default:
 		return WebSocketResponse{
 			Type:    msg.Type,
@@ -597,6 +641,57 @@ func (s *Server) handleWebSocketDns(payload json.RawMessage) WebSocketResponse {
 
 	return WebSocketResponse{
 		Type:   "dns",
+		Status: "success",
+		Data:   result,
+	}
+}
+
+// handleWebSocketMtr 处理 WebSocket mtr 请求
+func (s *Server) handleWebSocketMtr(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		Host     string `json:"host"`
+		MaxHops  int    `json:"max_hops"`
+		Count    int    `json:"count"`
+		Interval int    `json:"interval"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "mtr",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.MaxHops == 0 {
+		req.MaxHops = 30
+	}
+	if req.Count == 0 {
+		req.Count = 10
+	}
+	if req.Interval == 0 {
+		req.Interval = 1
+	}
+
+	service := modules.NewMtrService()
+	config := modules.NewMtrConfig()
+	config.Host = req.Host
+	config.MaxHops = req.MaxHops
+	config.Count = req.Count
+	config.Interval = req.Interval
+
+	result, err := service.Mtr(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "mtr",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "mtr",
 		Status: "success",
 		Data:   result,
 	}
