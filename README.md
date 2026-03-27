@@ -15,7 +15,7 @@
 ## 项目结构
 
 ```
-network-probe/
+network_probe/
 ├── main.go                    # 程序入口
 ├── go.mod                     # Go 模块定义
 ├── go.sum                     # Go 依赖校验
@@ -51,14 +51,14 @@ network-probe/
 1. 克隆仓库：
 
 ```bash
-git clone https://github.com/your-username/network-probe.git
-cd network-probe
+git clone https://github.com/your-username/network_probe.git
+cd network_probe
 ```
 
 2. 构建项目：
 
 ```bash
-go build -o network-probe
+go build -o network_probe
 ```
 
 ### 直接运行
@@ -72,7 +72,7 @@ go run .
 ### 查看帮助
 
 ```bash
-./network-probe --help
+./network_probe --help
 ```
 
 ### Ping 测试
@@ -80,8 +80,8 @@ go run .
 使用 ICMP 协议测试网络连通性（需要 root 权限）：
 
 ```bash
-sudo ./network-probe ping www.baidu.com
-sudo ./network-probe ping www.baidu.com -c 10 -t 3
+sudo ./network_probe ping www.baidu.com
+sudo ./network_probe ping www.baidu.com -c 10 -t 3
 ```
 
 参数：
@@ -93,8 +93,8 @@ sudo ./network-probe ping www.baidu.com -c 10 -t 3
 测试到特定端口的 TCP 连接：
 
 ```bash
-./network-probe tcping example.com -p 80
-./network-probe tcping example.com -p 443 -c 10 -t 5
+./network_probe tcping example.com -p 80
+./network_probe tcping example.com -p 443 -c 10 -t 5
 ```
 
 参数：
@@ -107,8 +107,8 @@ sudo ./network-probe ping www.baidu.com -c 10 -t 3
 测试网站可用性和响应时间：
 
 ```bash
-./network-probe website https://example.com
-./network-probe website https://example.com -m POST -t 60 -f
+./network_probe website https://example.com
+./network_probe website https://example.com -m POST -t 60 -f
 ```
 
 参数：
@@ -121,8 +121,8 @@ sudo ./network-probe ping www.baidu.com -c 10 -t 3
 追踪数据包到达目标的路径（需要 root 权限）：
 
 ```bash
-sudo ./network-probe traceroute example.com
-sudo ./network-probe traceroute example.com -m 20 -p icmp
+sudo ./network_probe traceroute example.com
+sudo ./network_probe traceroute example.com -m 20 -p icmp
 ```
 
 参数：
@@ -134,9 +134,9 @@ sudo ./network-probe traceroute example.com -m 20 -p icmp
 执行 DNS 记录查询：
 
 ```bash
-./network-probe dns example.com
-./network-probe dns example.com -t MX
-./network-probe dns example.com -t A -n 8.8.8.8
+./network_probe dns example.com
+./network_probe dns example.com -t MX
+./network_probe dns example.com -t A -n 8.8.8.8
 ```
 
 参数：
@@ -148,8 +148,8 @@ sudo ./network-probe traceroute example.com -m 20 -p icmp
 扫描目标主机的开放端口：
 
 ```bash
-./network-probe port-scan example.com
-./network-probe port-scan example.com -r 1-1000 -t 500
+./network_probe port-scan example.com
+./network_probe port-scan example.com -r 1-1000 -t 500
 ```
 
 参数：
@@ -161,8 +161,8 @@ sudo ./network-probe traceroute example.com -m 20 -p icmp
 启动 Web API 服务器：
 
 ```bash
-./network-probe server
-./network-probe server -H 0.0.0.0 -p 8080
+./network_probe server
+./network_probe server -H 0.0.0.0 -p 8080
 ```
 
 参数：
@@ -172,13 +172,13 @@ sudo ./network-probe traceroute example.com -m 20 -p icmp
 ### 安装为系统服务
 
 ```bash
-sudo ./network-probe install -s network-probe -H 127.0.0.1 -p 8080
+sudo ./network_probe install -s network_probe -H 127.0.0.1 -p 8080
 ```
 
 ### 卸载系统服务
 
 ```bash
-sudo ./network-probe uninstall -s network-probe
+sudo ./network_probe uninstall -s network_probe
 ```
 
 ## API 接口
