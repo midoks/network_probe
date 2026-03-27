@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 
 	"network-probe/internal/modules"
 )
@@ -13,6 +15,29 @@ import (
 // parseDuration 将秒数转换为 time.Duration
 func parseDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+// WebSocket 升级器
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // 允许所有来源
+	},
+}
+
+// WebSocketMessage 表示 WebSocket 消息
+type WebSocketMessage struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// WebSocketResponse 表示 WebSocket 响应
+type WebSocketResponse struct {
+	Type    string      `json:"type"`
+	Status  string      `json:"status"`
+	Message string      `json:"message,omitempty"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 // Server 表示 API 服务器
@@ -58,6 +83,9 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Network Probe API Server")
 	})
+
+	// WebSocket 路由
+	s.router.GET("/ws", s.handleWebSocket)
 }
 
 // healthCheck 健康检查
@@ -267,6 +295,311 @@ func (s *Server) handleDns(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleWebSocket 处理 WebSocket 连接
+func (s *Server) handleWebSocket(c *gin.Context) {
+	// 升级 HTTP 连接为 WebSocket
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to upgrade to WebSocket: " + err.Error()})
+		return
+	}
+	defer conn.Close()
+
+	// 发送连接成功消息
+	welcome := WebSocketResponse{
+		Type:    "connected",
+		Status:  "success",
+		Message: "Connected to Network Probe WebSocket",
+	}
+	if err := conn.WriteJSON(welcome); err != nil {
+		return
+	}
+
+	// 处理消息
+	for {
+		var msg WebSocketMessage
+		if err := conn.ReadJSON(&msg); err != nil {
+			// 客户端断开连接
+			break
+		}
+
+		// 根据消息类型处理
+		response := s.processWebSocketMessage(msg)
+		if err := conn.WriteJSON(response); err != nil {
+			break
+		}
+	}
+}
+
+// processWebSocketMessage 处理 WebSocket 消息
+func (s *Server) processWebSocketMessage(msg WebSocketMessage) WebSocketResponse {
+	switch msg.Type {
+	case "ping":
+		return s.handleWebSocketPing(msg.Payload)
+	case "tcping":
+		return s.handleWebSocketTcping(msg.Payload)
+	case "website":
+		return s.handleWebSocketWebsite(msg.Payload)
+	case "traceroute":
+		return s.handleWebSocketTraceroute(msg.Payload)
+	case "dns":
+		return s.handleWebSocketDns(msg.Payload)
+	default:
+		return WebSocketResponse{
+			Type:    msg.Type,
+			Status:  "error",
+			Message: "Unknown message type: " + msg.Type,
+		}
+	}
+}
+
+// handleWebSocketPing 处理 WebSocket ping 请求
+func (s *Server) handleWebSocketPing(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		Host    string `json:"host"`
+		Count   int    `json:"count"`
+		Timeout int    `json:"timeout"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "ping",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.Count == 0 {
+		req.Count = 4
+	}
+	if req.Timeout == 0 {
+		req.Timeout = 2
+	}
+
+	service := modules.NewPingService()
+	config := modules.NewPingConfig()
+	config.Host = req.Host
+	config.Count = req.Count
+	config.Timeout = parseDuration(req.Timeout)
+
+	result, err := service.Ping(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "ping",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "ping",
+		Status: "success",
+		Data:   result,
+	}
+}
+
+// handleWebSocketTcping 处理 WebSocket tcping 请求
+func (s *Server) handleWebSocketTcping(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		Host    string `json:"host"`
+		Port    int    `json:"port"`
+		Count   int    `json:"count"`
+		Timeout int    `json:"timeout"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "tcping",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.Count == 0 {
+		req.Count = 4
+	}
+	if req.Timeout == 0 {
+		req.Timeout = 3
+	}
+
+	service := modules.NewTcpingService()
+	config := modules.NewTcpingConfig()
+	config.Host = req.Host
+	config.Port = req.Port
+	config.Count = req.Count
+	config.Timeout = parseDuration(req.Timeout)
+
+	result, err := service.Tcping(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "tcping",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "tcping",
+		Status: "success",
+		Data:   result,
+	}
+}
+
+// handleWebSocketWebsite 处理 WebSocket website 请求
+func (s *Server) handleWebSocketWebsite(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		URL             string `json:"url"`
+		Method          string `json:"method"`
+		Timeout         int    `json:"timeout"`
+		FollowRedirects bool   `json:"follow_redirects"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "website",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.Method == "" {
+		req.Method = "GET"
+	}
+	if req.Timeout == 0 {
+		req.Timeout = 30
+	}
+
+	service := modules.NewWebsiteTestService()
+	config := modules.NewWebsiteTestConfig()
+	config.URL = req.URL
+	config.Method = req.Method
+	config.Timeout = parseDuration(req.Timeout)
+	config.FollowRedirects = req.FollowRedirects
+
+	result, err := service.TestWebsite(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "website",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "website",
+		Status: "success",
+		Data:   result,
+	}
+}
+
+// handleWebSocketTraceroute 处理 WebSocket traceroute 请求
+func (s *Server) handleWebSocketTraceroute(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		Host     string `json:"host"`
+		MaxHops  int    `json:"max_hops"`
+		Protocol string `json:"protocol"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "traceroute",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.MaxHops == 0 {
+		req.MaxHops = 30
+	}
+	if req.Protocol == "" {
+		req.Protocol = "icmp"
+	}
+
+	service := modules.NewTracerouteService()
+	config := modules.NewTracerouteConfig()
+	config.Host = req.Host
+	config.MaxHops = req.MaxHops
+	config.Protocol = req.Protocol
+
+	result, err := service.Traceroute(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "traceroute",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "traceroute",
+		Status: "success",
+		Data:   result,
+	}
+}
+
+// handleWebSocketDns 处理 WebSocket dns 请求
+func (s *Server) handleWebSocketDns(payload json.RawMessage) WebSocketResponse {
+	var req struct {
+		Domain     string `json:"domain"`
+		QueryType  string `json:"query_type"`
+		Nameserver string `json:"nameserver"`
+	}
+
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return WebSocketResponse{
+			Type:    "dns",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+		}
+	}
+
+	// 设置默认值
+	if req.QueryType == "" {
+		req.QueryType = "A"
+	}
+
+	var service *modules.DnsService
+	var err error
+
+	if req.Nameserver != "" {
+		service, err = modules.NewDnsServiceWithNameserver(req.Nameserver)
+	} else {
+		service = modules.NewDnsService()
+	}
+
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "dns",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	config := modules.NewDnsConfig()
+	config.Domain = req.Domain
+	config.QueryType = modules.DnsQueryType(req.QueryType)
+	config.Nameserver = req.Nameserver
+
+	result, err := service.Query(config)
+	if err != nil {
+		return WebSocketResponse{
+			Type:    "dns",
+			Status:  "error",
+			Message: err.Error(),
+		}
+	}
+
+	return WebSocketResponse{
+		Type:   "dns",
+		Status: "success",
+		Data:   result,
+	}
 }
 
 // Run 启动服务器

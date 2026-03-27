@@ -237,11 +237,101 @@ curl -X POST http://localhost:8080/api/dns \
   -d '{"domain": "www.baidu.com", "query_type": "A", "nameserver": ""}'
 ```
 
+### WebSocket 接口
+
+WebSocket 端点：`ws://localhost:8080/ws`
+
+连接成功后，服务器会返回连接成功消息：
+
+```json
+{
+  "type": "connected",
+  "status": "success",
+  "message": "Connected to Network Probe WebSocket"
+}
+```
+
+#### WebSocket 消息格式
+
+请求消息格式：
+
+```json
+{
+  "type": "ping",
+  "payload": {
+    "host": "www.baidu.com",
+    "count": 4,
+    "timeout": 2
+  }
+}
+```
+
+响应消息格式：
+
+```json
+{
+  "type": "ping",
+  "status": "success",
+  "data": {
+    "host": "www.baidu.com",
+    "ip": "110.242.68.66",
+    "attempts": 4,
+    "successful_attempts": 4,
+    "packet_loss": 0,
+    "min_rtt": 10.5,
+    "max_rtt": 15.2,
+    "avg_rtt": 12.8
+  }
+}
+```
+
+#### 支持的 WebSocket 消息类型
+
+- `ping` - ICMP ping 测试
+- `tcping` - TCP ping 测试
+- `website` - 网站测试
+- `traceroute` - Traceroute 测试
+- `dns` - DNS 查询
+
+#### WebSocket 使用示例 (JavaScript)
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+ws.onopen = function() {
+  console.log('Connected to WebSocket');
+  
+  // 发送 ping 请求
+  ws.send(JSON.stringify({
+    type: 'ping',
+    payload: {
+      host: 'www.baidu.com',
+      count: 4,
+      timeout: 2
+    }
+  }));
+};
+
+ws.onmessage = function(event) {
+  const response = JSON.parse(event.data);
+  console.log('Received:', response);
+};
+
+ws.onerror = function(error) {
+  console.error('WebSocket error:', error);
+};
+
+ws.onclose = function() {
+  console.log('WebSocket connection closed');
+};
+```
+
 ## 技术栈
 
 - **Go 1.20+**: 编程语言
 - **Cobra**: 命令行框架
 - **Gin**: Web 框架
+- **Gorilla WebSocket**: WebSocket 库
 - **CORS**: 跨域资源共享中间件
 
 ## 权限说明
