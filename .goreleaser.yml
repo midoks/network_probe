@@ -1,7 +1,5 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
-# https://www.jianshu.com/p/ac18956b0bc0
-
 
 # find . -name ".pyc" -print -delete && goreleaser release --snapshot --clean
 
