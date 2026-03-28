@@ -104,7 +104,7 @@ func (s *Server) setupRoutes() {
 	})
 
 	// WebSocket 路由（需要认证）
-	s.router.GET("/ws", s.authMiddleware(), s.handleWebSocket)
+	s.router.GET("/ws", s.handleWebSocket)
 }
 
 // authMiddleware 认证中间件
@@ -418,6 +418,17 @@ func (s *Server) handleMtr(c *gin.Context) {
 
 // handleWebSocket 处理 WebSocket 连接
 func (s *Server) handleWebSocket(c *gin.Context) {
+	// 检查认证信息
+	if s.config.Secret != "" {
+		nodeID := c.GetHeader("X-Node-ID")
+		secret := c.GetHeader("X-Secret")
+
+		if nodeID != s.config.NodeID || secret != s.config.Secret {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+	}
+
 	// 升级 HTTP 连接为 WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
