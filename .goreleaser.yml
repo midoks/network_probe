@@ -1,0 +1,69 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+# https://www.jianshu.com/p/ac18956b0bc0
+
+
+# find . -name ".pyc" -print -delete && goreleaser release --snapshot --clean
+
+# git tag -a v1.2 -m "release v1.2"
+# git push origin v1.2
+# goreleaser --rm-dist
+# goreleaser --snapshot --skip-publish --rm-dist
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+archives:
+
+  - files:
+      - src: LICENSE
+      - src: readme.md
+
+upx:
+  - enabled: true
+    goos:
+      - linux
+    compress: best
+    lzma: true
+    brute: false
+
+checksum:
+  name_template: 'checksums.txt'
+
+release:
+  # Repo in which the release will be created.
+  # Default is extracted from the origin remote URL.
+  github:
+    owner: midoks
+    name: network_probe
+
+  # If set to true, will not auto-publish the release.
+  # Default is false.
+  draft: false
+
+  # If set to true, will mark the release as not ready for production.
+  # Default is false.
+  prerelease: false
+
+snapshot:
+  name_template: "{{ .Tag }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

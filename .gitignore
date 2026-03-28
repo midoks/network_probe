@@ -23,3 +23,4 @@ network_probe/.DS_Store
 .DS_Store
 /vendor
 network_probe
+/dist
