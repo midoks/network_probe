@@ -9,6 +9,7 @@ import (
 
 // Config 表示应用配置
 type Config struct {
+	Debug           bool     `yaml:"debug"`
 	Port            int      `yaml:"port"`
 	NodeID          string   `yaml:"nodeId"`
 	Secret          string   `yaml:"secret"`

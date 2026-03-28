@@ -13,6 +13,7 @@ import (
 
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/version"
 )
 
 // parseDuration 将秒数转换为 time.Duration
@@ -85,6 +86,8 @@ func (s *Server) setupRoutes() {
 	// 健康检查（不需要认证）
 	s.router.GET("/api/health", s.healthCheck)
 	s.router.GET("/api/status", s.status)
+	// 版本信息（不需要认证）
+	s.router.GET("/api/version", s.version)
 
 	// API 路由组（需要认证）
 	api := s.router.Group("/api")
@@ -177,7 +180,17 @@ func (s *Server) healthCheck(c *gin.Context) {
 func (s *Server) status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "running",
-		"version": "1.0.0",
+		"version": version.Version,
+	})
+}
+
+// version 版本信息
+func (s *Server) version(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"version":     version.Version,
+		"build_time":  version.BuildTime,
+		"service":     "Network Probe",
+		"api_version": "v1",
 	})
 }
 
@@ -419,13 +432,16 @@ func (s *Server) handleMtr(c *gin.Context) {
 // handleWebSocket 处理 WebSocket 连接
 func (s *Server) handleWebSocket(c *gin.Context) {
 	// 检查认证信息
-	if s.config.Secret != "" {
-		nodeID := c.GetHeader("X-Node-ID")
-		secret := c.GetHeader("X-Secret")
+	fmt.Println("s.config.Debug:", s.config.Debug)
+	if s.config.Debug {
+		if s.config.Secret != "" {
+			nodeID := c.GetHeader("X-Node-ID")
+			secret := c.GetHeader("X-Secret")
 
-		if nodeID != s.config.NodeID || secret != s.config.Secret {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
+			if nodeID != s.config.NodeID || secret != s.config.Secret {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+				return
+			}
 		}
 	}
 

@@ -12,6 +12,7 @@ import (
 	"network-probe/internal/api"
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/version"
 )
 
 // Cli 表示命令行参数
@@ -54,6 +55,16 @@ func Run() error {
 
 	// 添加日志级别参数
 	rootCmd.PersistentFlags().StringVarP(&cli.LogLevel, "log-level", "l", "info", "Set log level")
+
+	// 添加版本命令
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Network Probe v%s\n", version.Version)
+			fmt.Printf("Build Time: %s\n", version.BuildTime)
+		},
+	})
 
 	// 添加 ping 命令
 	pingCmd := &cobra.Command{
