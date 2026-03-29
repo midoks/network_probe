@@ -164,7 +164,7 @@ type SystemInfoReportData struct {
 }
 
 // Report 上报数据
-func Report(reportType ReportType, subType SubType, data map[string]interface{}) error {
+func Report(reportType ReportType, subType SubType, data interface{}) error {
 	cfg, err := config.LoadConfig(config.GetConfigPath())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %v", err)
@@ -368,9 +368,7 @@ func ReportCliTcping(request, result interface{}) error {
 	})
 }
 
-// ReportSystemInfo 上报系统信息
-func ReportSystemInfo(systemInfo interface{}) error {
-	return Report(ReportTypeSystem, SystemInfo, map[string]interface{}{
-		"result": systemInfo,
-	})
+// ReportSystemInfo 上报节点运行信息
+func ReportSystemInfo(data interface{}) error {
+	return Report(ReportTypeSystem, SystemInfo, data)
 }
