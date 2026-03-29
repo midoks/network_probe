@@ -346,7 +346,9 @@ func handleSysinfo(cli *Cli) error {
 	fmt.Printf("Today Traffic:      %s\n", systemInfo.TodayTraffic)
 
 	// 上报系统信息
-	report.ReportSystemInfo(systemInfo)
+	if err := report.ReportSystemInfo(systemInfo); err != nil {
+		fmt.Printf("上报系统信息失败: %v\n", err)
+	}
 
 	return nil
 }
@@ -417,12 +419,14 @@ func handleTcping(cli *Cli) error {
 	}
 
 	// 上报结果
-	report.ReportCliTcping(map[string]interface{}{
+	if err := report.ReportCliTcping(map[string]interface{}{
 		"host":    cli.Host,
 		"port":    cli.Port,
 		"count":   cli.Count,
 		"timeout": cli.Timeout,
-	}, result)
+	}, result); err != nil {
+		fmt.Printf("上报 TCPing 结果失败: %v\n", err)
+	}
 
 	fmt.Printf("  TCPing results for %s:%d:\n", result.Host, result.Port)
 	fmt.Printf("  Connections attempted: %d\n", result.Attempts)
