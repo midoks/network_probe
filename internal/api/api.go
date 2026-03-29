@@ -34,6 +34,7 @@ var upgrader = websocket.Upgrader{
 type WebSocketMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
+	ID      string          `json:"id,omitempty"` // 消息 ID，用于跟踪请求
 }
 
 // WebSocketResponse 表示 WebSocket 响应
@@ -42,6 +43,14 @@ type WebSocketResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
+	ID      string      `json:"id,omitempty"` // 对应请求的消息 ID
+}
+
+// WebSocketUpdate 表示 WebSocket 实时更新
+type WebSocketUpdate struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
+	ID   string      `json:"id,omitempty"` // 对应请求的消息 ID
 }
 
 // Server 表示 API 服务器
@@ -472,9 +481,16 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 		}
 
 		// 根据消息类型处理
-		response := s.processWebSocketMessage(msg)
-		if err := conn.WriteJSON(response); err != nil {
-			break
+		if msg.Type == "mtr" {
+			// MTR 特殊处理，支持实时更新
+			s.handleWebSocketMtrWithUpdates(conn, msg)
+		} else {
+			// 其他消息类型
+			response := s.processWebSocketMessage(msg)
+			response.ID = msg.ID // 保留消息 ID
+			if err := conn.WriteJSON(response); err != nil {
+				break
+			}
 		}
 	}
 }
@@ -799,6 +815,94 @@ func (s *Server) handleWebSocketMtr(payload json.RawMessage) WebSocketResponse {
 		Status: "success",
 		Data:   result,
 	}
+}
+
+// handleWebSocketMtrWithUpdates 处理 WebSocket mtr 请求（带实时更新）
+func (s *Server) handleWebSocketMtrWithUpdates(conn *websocket.Conn, msg WebSocketMessage) {
+	var req struct {
+		Host     string `json:"host"`
+		MaxHops  int    `json:"max_hops"`
+		Count    int    `json:"count"`
+		Interval int    `json:"interval"`
+	}
+
+	if err := json.Unmarshal(msg.Payload, &req); err != nil {
+		response := WebSocketResponse{
+			Type:    "mtr",
+			Status:  "error",
+			Message: "Invalid request: " + err.Error(),
+			ID:      msg.ID,
+		}
+		conn.WriteJSON(response)
+		return
+	}
+
+	// 设置默认值
+	if req.MaxHops == 0 {
+		req.MaxHops = 30
+	}
+	if req.Count == 0 {
+		req.Count = 10
+	}
+	if req.Interval == 0 {
+		req.Interval = 1
+	}
+
+	// 创建带有回调函数的 MTR 服务
+	hopCallback := func(hop modules.MtrHop) error {
+		// 发送跳点更新
+		update := WebSocketUpdate{
+			Type: "mtr_update",
+			Data: hop,
+			ID:   msg.ID,
+		}
+		return conn.WriteJSON(update)
+	}
+
+	// 数据包回调函数
+	packetCallback := func(packet modules.MtrPacketResult) error {
+		// 发送数据包更新
+		update := WebSocketUpdate{
+			Type: "mtr_packet_update",
+			Data: packet,
+			ID:   msg.ID,
+		}
+		return conn.WriteJSON(update)
+	}
+
+	service := modules.NewMtrServiceWithPacketCallback(hopCallback, packetCallback)
+	config := modules.NewMtrConfig()
+	config.Host = req.Host
+	config.MaxHops = req.MaxHops
+	config.Count = req.Count
+	config.Interval = req.Interval
+
+	// 执行 MTR
+	result, err := service.Mtr(config)
+	if err != nil {
+		response := WebSocketResponse{
+			Type:    "mtr",
+			Status:  "error",
+			Message: err.Error(),
+			ID:      msg.ID,
+		}
+		conn.WriteJSON(response)
+		return
+	}
+
+	// 发送最终结果
+	response := WebSocketResponse{
+		Type:   "mtr",
+		Status: "success",
+		Data:   result,
+		ID:     msg.ID,
+	}
+	conn.WriteJSON(response)
+}
+
+// GetConfig 获取服务器配置
+func (s *Server) GetConfig() *config.Config {
+	return s.config
 }
 
 // Run 启动服务器

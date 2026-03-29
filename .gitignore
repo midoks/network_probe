@@ -24,3 +24,4 @@ network_probe/.DS_Store
 /vendor
 network_probe
 /dist
+websocket_client

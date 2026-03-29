@@ -18,13 +18,23 @@ const (
 type WebSocketMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
+	ID      string          `json:"id,omitempty"`
 }
 
+// WebSocketResponse 表示从服务器接收的响应
 type WebSocketResponse struct {
 	Type    string      `json:"type"`
 	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
+	ID      string      `json:"id,omitempty"`
+}
+
+// WebSocketUpdate 表示从服务器接收的实时更新
+type WebSocketUpdate struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data,omitempty"`
+	ID   string      `json:"id,omitempty"`
 }
 
 func main() {
@@ -89,6 +99,7 @@ func main() {
 func testMTR(conn *websocket.Conn) {
 	request := map[string]interface{}{
 		"type": "mtr",
+		"id":   "mtr-1", // 添加消息 ID
 		"payload": map[string]interface{}{
 			"host":     "baidu.com",
 			"max_hops": 5,
@@ -97,7 +108,7 @@ func testMTR(conn *websocket.Conn) {
 		},
 	}
 
-	sendAndReceive(conn, request)
+	sendAndReceiveWithUpdates(conn, request)
 }
 
 func testPing(conn *websocket.Conn) {
@@ -184,5 +195,76 @@ func sendAndReceive(conn *websocket.Conn, request map[string]interface{}) {
 		fmt.Printf("⚠️  Error: %s\n", response.Message)
 	} else {
 		fmt.Printf("✅ Success\n")
+	}
+}
+
+// sendAndReceiveWithUpdates 发送请求并接收实时更新
+func sendAndReceiveWithUpdates(conn *websocket.Conn, request map[string]interface{}) {
+	// 发送请求
+	jsonData, err := json.MarshalIndent(request, "", "  ")
+	if err != nil {
+		log.Printf("Failed to marshal request: %v", err)
+		return
+	}
+	fmt.Printf("Sending:\n%s\n", jsonData)
+
+	if err := conn.WriteJSON(request); err != nil {
+		log.Printf("Failed to send request: %v", err)
+		return
+	}
+
+	// 接收响应和更新
+	requestID, _ := request["id"].(string)
+	responseReceived := false
+
+	for !responseReceived {
+		// 设置读取超时
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+		var msg map[string]interface{}
+		if err := conn.ReadJSON(&msg); err != nil {
+			log.Printf("Failed to read message: %v", err)
+			break
+		}
+
+		// 检查消息 ID
+		msgID, hasID := msg["id"].(string)
+		if hasID && msgID != requestID {
+			continue // 跳过不是当前请求的消息
+		}
+
+		// 根据消息类型处理
+		if msgType, ok := msg["type"].(string); ok {
+			if msgType == "mtr_update" {
+				// 实时更新消息
+				updateData, err := json.MarshalIndent(msg, "", "  ")
+				if err != nil {
+					log.Printf("Failed to marshal update: %v", err)
+					continue
+				}
+				fmt.Printf("Update:\n%s\n", updateData)
+			} else {
+				// 最终响应
+				responseData, err := json.MarshalIndent(msg, "", "  ")
+				if err != nil {
+					log.Printf("Failed to marshal response: %v", err)
+					continue
+				}
+				fmt.Printf("Response:\n%s\n", responseData)
+
+				// 检查响应状态
+				if status, ok := msg["status"].(string); ok {
+					if status == "error" {
+						if message, ok := msg["message"].(string); ok {
+							fmt.Printf("⚠️  Error: %s\n", message)
+						}
+					} else {
+						fmt.Printf("✅ Success\n")
+					}
+				}
+
+				responseReceived = true
+			}
+		}
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"network-probe/internal/api"
-	"network-probe/internal/config"
 	"network-probe/internal/modules"
 	"network-probe/internal/version"
 )
@@ -27,213 +26,262 @@ type Cli struct {
 	Method          string
 	FollowRedirects bool
 	MaxHops         int
-	Protocol        string
-	Domain          string
-	QueryType       string
-	Nameserver      string
 	Range           string
 	ServiceName     string
+	ReportEndpoints []string
 }
 
-// NewCli 创建一个新的命令行参数结构
-func NewCli() *Cli {
-	return &Cli{
-		LogLevel: "info",
-	}
-}
-
-// Run 运行命令行工具
+// Run 运行 CLI
 func Run() error {
-	cli := NewCli()
+	cli := &Cli{}
 
-	// 创建根命令
-	rootCmd := &cobra.Command{
-		Use:   "network-probe",
-		Short: "A comprehensive network testing tool",
-		Long:  "A comprehensive network testing tool that supports ping, tcping, traceroute, DNS queries, website testing, and port scanning.",
+	var rootCmd = &cobra.Command{
+		Use:   "network_probe",
+		Short: "Network probe tool",
+		Long:  "A comprehensive network probe tool with ping, traceroute, mtr, and more",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if cli.Command == "" {
+				// 没有提供命令，显示帮助信息
+				cmd.Help()
+				os.Exit(0)
+			}
+			switch cli.Command {
+			case "ping":
+				if err := handlePing(cli); err != nil {
+					os.Exit(1)
+				}
+			case "tcping":
+				if err := handleTcping(cli); err != nil {
+					os.Exit(1)
+				}
+			case "website":
+				if err := handleWebsite(cli); err != nil {
+					os.Exit(1)
+				}
+			case "traceroute":
+				if err := handleTraceroute(cli); err != nil {
+					os.Exit(1)
+				}
+			case "dns":
+				if err := handleDNS(cli); err != nil {
+					os.Exit(1)
+				}
+			case "mtr":
+				if err := handleMtr(cli); err != nil {
+					os.Exit(1)
+				}
+			case "port-scan":
+				if err := handlePortScan(cli); err != nil {
+					os.Exit(1)
+				}
+			case "install":
+				if err := handleInstall(cli); err != nil {
+					os.Exit(1)
+				}
+			case "uninstall":
+				if err := handleUninstall(cli); err != nil {
+					os.Exit(1)
+				}
+			case "server":
+				if err := handleServer(cli); err != nil {
+					os.Exit(1)
+				}
+			case "version":
+				fmt.Printf("network_probe version %s\n", version.Version)
+			default:
+				fmt.Printf("Unknown command: %s\n", cli.Command)
+				os.Exit(1)
+			}
+		},
 	}
 
-	// 添加日志级别参数
-	rootCmd.PersistentFlags().StringVarP(&cli.LogLevel, "log-level", "l", "info", "Set log level")
+	rootCmd.PersistentFlags().StringVarP(&cli.LogLevel, "log-level", "l", "info", "Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().IntVarP(&cli.Count, "count", "c", 4, "Number of packets to send")
+	rootCmd.PersistentFlags().IntVarP(&cli.Timeout, "timeout", "t", 1, "Timeout in seconds")
+	rootCmd.PersistentFlags().IntVarP(&cli.MaxHops, "max-hops", "m", 30, "Maximum number of hops")
 
-	// 添加版本命令
-	rootCmd.AddCommand(&cobra.Command{
+	// Ping 命令
+	var pingCmd = &cobra.Command{
+		Use:   "ping [host]",
+		Short: "Ping a host",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "ping"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handlePing(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	// TCPing 命令
+	var tcpingCmd = &cobra.Command{
+		Use:   "tcping [host:port]",
+		Short: "TCP connection test",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "tcping"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handleTcping(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	tcpingCmd.Flags().IntVarP(&cli.Port, "port", "p", 80, "Port number")
+
+	// Website 命令
+	var websiteCmd = &cobra.Command{
+		Use:   "website [url]",
+		Short: "Website test",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "website"
+			if len(args) > 0 {
+				cli.URL = args[0]
+			}
+			if err := handleWebsite(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	websiteCmd.Flags().StringVarP(&cli.Method, "method", "M", "GET", "HTTP method")
+	websiteCmd.Flags().BoolVarP(&cli.FollowRedirects, "follow-redirects", "f", false, "Follow redirects")
+
+	// Traceroute 命令
+	var tracerouteCmd = &cobra.Command{
+		Use:   "traceroute [host]",
+		Short: "Traceroute to a host",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "traceroute"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handleTraceroute(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	// DNS 命令
+	var dnsCmd = &cobra.Command{
+		Use:   "dns [host]",
+		Short: "DNS query",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "dns"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handleDNS(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	// MTR 命令
+	var mtrCmd = &cobra.Command{
+		Use:   "mtr [host]",
+		Short: "MTR test",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "mtr"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handleMtr(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	// Port-scan 命令
+	var portScanCmd = &cobra.Command{
+		Use:   "port-scan [host]",
+		Short: "Port scan",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "port-scan"
+			if len(args) > 0 {
+				cli.Host = args[0]
+			}
+			if err := handlePortScan(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	portScanCmd.Flags().StringVarP(&cli.Range, "range", "r", "1-1000", "Port range")
+
+	// Install 命令
+	var installCmd = &cobra.Command{
+		Use:   "install",
+		Short: "Install systemd service",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "install"
+			if err := handleInstall(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	installCmd.Flags().StringVarP(&cli.ServiceName, "name", "n", "network_probe", "Service name")
+
+	// Uninstall 命令
+	var uninstallCmd = &cobra.Command{
+		Use:   "uninstall",
+		Short: "Uninstall systemd service",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "uninstall"
+			if err := handleUninstall(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	uninstallCmd.Flags().StringVarP(&cli.ServiceName, "name", "n", "network_probe", "Service name")
+
+	// Server 命令
+	var serverCmd = &cobra.Command{
+		Use:   "server",
+		Short: "Start API server",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "server"
+			if err := handleServer(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+	serverCmd.Flags().IntVarP(&cli.Port, "port", "p", 0, "Server port (default: from config file)")
+
+	// Version 命令
+	var versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Network Probe v%s\n", version.Version)
-			fmt.Printf("Build Time: %s\n", version.BuildTime)
-		},
-	})
-
-	// 添加 ping 命令
-	pingCmd := &cobra.Command{
-		Use:   "ping",
-		Short: "Perform ICMP ping test",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("ping command requires a host argument")
-			}
-			cli.Command = "ping"
-			cli.Host = args[0]
-			return handlePing(cli)
+			cli.Command = "version"
+			fmt.Printf("network_probe version %s\n", version.Version)
 		},
 	}
-	pingCmd.Flags().IntVarP(&cli.Count, "count", "c", 4, "Number of ping packets to send")
-	pingCmd.Flags().IntVarP(&cli.Timeout, "timeout", "t", 2, "Timeout in seconds")
+
+	// 添加子命令
 	rootCmd.AddCommand(pingCmd)
-
-	// 添加 tcping 命令
-	tcpingCmd := &cobra.Command{
-		Use:   "tcping",
-		Short: "Perform TCP connection test",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("tcping command requires a host argument")
-			}
-			cli.Command = "tcping"
-			cli.Host = args[0]
-			return handleTcping(cli)
-		},
-	}
-	tcpingCmd.Flags().IntVarP(&cli.Port, "port", "p", 80, "Target port")
-	tcpingCmd.Flags().IntVarP(&cli.Count, "count", "c", 4, "Number of connection attempts")
-	tcpingCmd.Flags().IntVarP(&cli.Timeout, "timeout", "t", 3, "Timeout in seconds")
 	rootCmd.AddCommand(tcpingCmd)
-
-	// 添加 website 命令
-	websiteCmd := &cobra.Command{
-		Use:   "website",
-		Short: "Test website availability",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("website command requires a URL argument")
-			}
-			cli.Command = "website"
-			cli.URL = args[0]
-			return handleWebsite(cli)
-		},
-	}
-	websiteCmd.Flags().StringVarP(&cli.Method, "method", "m", "GET", "HTTP method")
-	websiteCmd.Flags().BoolVarP(&cli.FollowRedirects, "follow-redirects", "f", false, "Follow redirects")
-	websiteCmd.Flags().IntVarP(&cli.Timeout, "timeout", "t", 30, "Timeout in seconds")
 	rootCmd.AddCommand(websiteCmd)
-
-	// 添加 traceroute 命令
-	tracerouteCmd := &cobra.Command{
-		Use:   "traceroute",
-		Short: "Perform traceroute",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("traceroute command requires a host argument")
-			}
-			cli.Command = "traceroute"
-			cli.Host = args[0]
-			return handleTraceroute(cli)
-		},
-	}
-	tracerouteCmd.Flags().IntVarP(&cli.MaxHops, "max-hops", "m", 30, "Maximum number of hops")
-	tracerouteCmd.Flags().StringVarP(&cli.Protocol, "protocol", "p", "icmp", "Protocol (icmp, udp, tcp)")
 	rootCmd.AddCommand(tracerouteCmd)
-
-	// 添加 dns 命令
-	dnsCmd := &cobra.Command{
-		Use:   "dns",
-		Short: "Perform DNS query",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("dns command requires a domain argument")
-			}
-			cli.Command = "dns"
-			cli.Domain = args[0]
-			return handleDns(cli)
-		},
-	}
-	dnsCmd.Flags().StringVarP(&cli.QueryType, "query-type", "t", "A", "Query type (A, AAAA, CNAME, MX, TXT, NS, SOA, PTR, ALL)")
-	dnsCmd.Flags().StringVarP(&cli.Nameserver, "nameserver", "n", "", "Custom nameserver")
 	rootCmd.AddCommand(dnsCmd)
-
-	// 添加 server 命令
-	serverCmd := &cobra.Command{
-		Use:   "server",
-		Short: "Start API server",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cli.Command = "server"
-			return handleServer(cli)
-		},
-	}
-	serverCmd.Flags().StringVarP(&cli.Host, "host", "H", "127.0.0.1", "Server host")
-	serverCmd.Flags().IntVarP(&cli.Port, "port", "p", 8080, "Server port")
-	rootCmd.AddCommand(serverCmd)
-
-	// 添加 port-scan 命令
-	portScanCmd := &cobra.Command{
-		Use:   "port-scan",
-		Short: "Scan ports on target host",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("port-scan command requires a host argument")
-			}
-			cli.Command = "port-scan"
-			cli.Host = args[0]
-			return handlePortScan(cli)
-		},
-	}
-	portScanCmd.Flags().StringVarP(&cli.Range, "range", "r", "1-1000", "Port range (e.g., 1-1000)")
-	portScanCmd.Flags().IntVarP(&cli.Timeout, "timeout", "t", 1000, "Timeout in milliseconds")
-	rootCmd.AddCommand(portScanCmd)
-
-	// 添加 install 命令
-	installCmd := &cobra.Command{
-		Use:   "install",
-		Short: "Install as a systemd service",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cli.Command = "install"
-			return handleInstall(cli)
-		},
-	}
-	installCmd.Flags().StringVarP(&cli.Host, "host", "H", "127.0.0.1", "Server host")
-	installCmd.Flags().IntVarP(&cli.Port, "port", "p", 8080, "Server port")
-	installCmd.Flags().StringVarP(&cli.ServiceName, "service-name", "s", "network-probe", "Service name")
-	rootCmd.AddCommand(installCmd)
-
-	// 添加 uninstall 命令
-	uninstallCmd := &cobra.Command{
-		Use:   "uninstall",
-		Short: "Uninstall systemd service",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cli.Command = "uninstall"
-			return handleUninstall(cli)
-		},
-	}
-	uninstallCmd.Flags().StringVarP(&cli.ServiceName, "service-name", "s", "network-probe", "Service name")
-	rootCmd.AddCommand(uninstallCmd)
-
-	// 添加 mtr 命令
-	mtrCmd := &cobra.Command{
-		Use:   "mtr",
-		Short: "Perform mtr (My TraceRoute) test",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return fmt.Errorf("mtr command requires a host argument")
-			}
-			cli.Command = "mtr"
-			cli.Host = args[0]
-			return handleMtr(cli)
-		},
-	}
-	mtrCmd.Flags().IntVarP(&cli.MaxHops, "max-hops", "m", 30, "Maximum number of hops")
-	mtrCmd.Flags().IntVarP(&cli.Count, "count", "c", 10, "Number of packets per hop")
-	mtrCmd.Flags().IntVarP(&cli.Timeout, "interval", "i", 1, "Interval between packets (seconds)")
 	rootCmd.AddCommand(mtrCmd)
+	rootCmd.AddCommand(portScanCmd)
+	rootCmd.AddCommand(installCmd)
+	rootCmd.AddCommand(uninstallCmd)
+	rootCmd.AddCommand(serverCmd)
+	rootCmd.AddCommand(versionCmd)
 
-	// 执行命令
 	return rootCmd.Execute()
 }
 
 // handlePing 处理 ping 命令
 func handlePing(cli *Cli) error {
-	fmt.Printf("Pinging %s...\n", cli.Host)
+	if cli.Host == "" {
+		return fmt.Errorf("host is required")
+	}
 
 	service := modules.NewPingService()
 	config := modules.NewPingConfig()
@@ -244,21 +292,25 @@ func handlePing(cli *Cli) error {
 	result, err := service.Ping(config)
 	if err != nil {
 		fmt.Printf("Ping failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	fmt.Printf("Ping results for %s (%s):\n", result.Host, result.IP)
-	fmt.Printf("  Packets: sent = %d, received = %d, loss = %.1f%%\n",
-		result.Attempts, result.SuccessfulAttempts, result.PacketLoss)
-	fmt.Printf("  RTT (ms): min = %.2f, max = %.2f, avg = %.2f\n",
-		result.MinRTT, result.MaxRTT, result.AvgRTT)
+	fmt.Printf("Ping results for %s:\n", result.Host)
+	fmt.Printf("  Packets sent: %d\n", result.Attempts)
+	fmt.Printf("  Packets received: %d\n", result.SuccessfulAttempts)
+	fmt.Printf("  Packet loss: %.1f%%\n", result.PacketLoss)
+	fmt.Printf("  RTT min: %.2f ms\n", result.MinRTT)
+	fmt.Printf("  RTT avg: %.2f ms\n", result.AvgRTT)
+	fmt.Printf("  RTT max: %.2f ms\n", result.MaxRTT)
 
 	return nil
 }
 
 // handleTcping 处理 tcping 命令
 func handleTcping(cli *Cli) error {
-	fmt.Printf("TCPing %s:%d...\n", cli.Host, cli.Port)
+	if cli.Host == "" {
+		return fmt.Errorf("host is required")
+	}
 
 	service := modules.NewTcpingService()
 	config := modules.NewTcpingConfig()
@@ -270,46 +322,45 @@ func handleTcping(cli *Cli) error {
 	result, err := service.Tcping(config)
 	if err != nil {
 		fmt.Printf("TCPing failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	fmt.Printf("TCPing results for %s:%d (%s):\n", result.Host, result.Port, result.IP)
-	fmt.Printf("  Attempts: %d, successful = %d, loss = %.1f%%\n",
-		result.Attempts, result.SuccessfulAttempts, result.PacketLoss)
-	fmt.Printf("  RTT (ms): min = %.2f, max = %.2f, avg = %.2f\n",
-		result.MinRTT, result.MaxRTT, result.AvgRTT)
+	fmt.Printf("TCPing results for %s:%d:\n", result.Host, result.Port)
+	fmt.Printf("  Connections attempted: %d\n", result.Attempts)
+	fmt.Printf("  Connections successful: %d\n", result.SuccessfulAttempts)
+	fmt.Printf("  Connection loss: %.1f%%\n", result.PacketLoss)
+	fmt.Printf("  RTT min: %.2f ms\n", result.MinRTT)
+	fmt.Printf("  RTT avg: %.2f ms\n", result.AvgRTT)
+	fmt.Printf("  RTT max: %.2f ms\n", result.MaxRTT)
 
 	return nil
 }
 
 // handleWebsite 处理 website 命令
 func handleWebsite(cli *Cli) error {
-	fmt.Printf("Testing website %s...\n", cli.URL)
+	if cli.URL == "" {
+		return fmt.Errorf("URL is required")
+	}
 
 	service := modules.NewWebsiteTestService()
 	config := modules.NewWebsiteTestConfig()
 	config.URL = cli.URL
 	config.Method = cli.Method
-	config.Timeout = time.Duration(cli.Timeout) * time.Second
 	config.FollowRedirects = cli.FollowRedirects
+	config.Timeout = time.Duration(cli.Timeout) * time.Second
 
 	result, err := service.TestWebsite(config)
 	if err != nil {
 		fmt.Printf("Website test failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	fmt.Printf("Website test results for %s:\n", result.URL)
-	if result.Status != 0 {
-		fmt.Printf("  Status: %s\n", result.StatusText)
-		fmt.Printf("  Status Code: %d\n", result.Status)
-	}
-	fmt.Printf("  Response Time: %.2fms\n", result.ResponseTime)
-	if result.ContentLength != 0 {
-		fmt.Printf("  Content Length: %d bytes\n", result.ContentLength)
-	}
-	if result.Error != "" {
-		fmt.Printf("  Error: %s\n", result.Error)
+	fmt.Printf("  Status: %d %s\n", result.Status, result.StatusText)
+	fmt.Printf("  Response time: %.2f ms\n", result.ResponseTime)
+	fmt.Printf("  Content length: %d bytes\n", result.ContentLength)
+	if result.RedirectURL != "" {
+		fmt.Printf("  Redirect URL: %s\n", result.RedirectURL)
 	}
 
 	return nil
@@ -317,22 +368,23 @@ func handleWebsite(cli *Cli) error {
 
 // handleTraceroute 处理 traceroute 命令
 func handleTraceroute(cli *Cli) error {
-	fmt.Printf("Tracerouting to %s using %s...\n", cli.Host, cli.Protocol)
+	if cli.Host == "" {
+		return fmt.Errorf("host is required")
+	}
 
 	service := modules.NewTracerouteService()
 	config := modules.NewTracerouteConfig()
 	config.Host = cli.Host
 	config.MaxHops = cli.MaxHops
-	config.Protocol = cli.Protocol
 
 	result, err := service.Traceroute(config)
 	if err != nil {
 		fmt.Printf("Traceroute failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	fmt.Printf("Traceroute results for %s:\n", result.Host)
-	fmt.Println("  Hops:")
+	fmt.Printf("Traceroute to %s:\n", result.Host)
+	fmt.Println("  Hop  IP               Hostname        RTT")
 	for _, hop := range result.Hops {
 		hostname := hop.Hostname
 		if hostname == "" {
@@ -342,98 +394,150 @@ func handleTraceroute(cli *Cli) error {
 		if ip == "" {
 			ip = "*"
 		}
-		rtt := fmt.Sprintf("%.2fms", hop.RTT)
-		if hop.Error != "" {
-			fmt.Printf("    %2d: * * * (%s)\n", hop.Hop, hop.Error)
-		} else {
-			fmt.Printf("    %2d: %s (%s) %s\n", hop.Hop, hostname, ip, rtt)
-		}
+		fmt.Printf("    %2d   %-15s  %-15s  %.2f ms\n", hop.Hop, ip, hostname, hop.RTT)
 	}
 
 	return nil
 }
 
-// handleDns 处理 dns 命令
-func handleDns(cli *Cli) error {
-	fmt.Printf("DNS query for %s (type: %s)...\n", cli.Domain, cli.QueryType)
-
-	var service *modules.DnsService
-	var err error
-
-	if cli.Nameserver != "" {
-		service, err = modules.NewDnsServiceWithNameserver(cli.Nameserver)
-	} else {
-		service = modules.NewDnsService()
+// handleDNS 处理 dns 命令
+func handleDNS(cli *Cli) error {
+	if cli.Host == "" {
+		return fmt.Errorf("host is required")
 	}
 
-	if err != nil {
-		fmt.Printf("DNS service creation failed: %v\n", err)
-		os.Exit(1)
-	}
-
+	service := modules.NewDnsService()
 	config := modules.NewDnsConfig()
-	config.Domain = cli.Domain
-	config.QueryType = modules.DnsQueryType(cli.QueryType)
-	config.Nameserver = cli.Nameserver
+	config.Domain = cli.Host
 
 	result, err := service.Query(config)
 	if err != nil {
 		fmt.Printf("DNS query failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	fmt.Printf("DNS query results for %s (type: %s):\n", result.Domain, config.QueryType)
-	fmt.Println("  Records:")
+	fmt.Printf("DNS query results for %s:\n", result.Domain)
+	fmt.Printf("  Records:\n")
 	for _, record := range result.Records {
-		fmt.Printf("    %s: %s\n", record.Type, record.Value)
-	}
-	if result.Error != "" {
-		fmt.Printf("  Error: %s\n", result.Error)
+		fmt.Printf("    %s  %s  %d\n", record.Type, record.Value, record.TTL)
 	}
 
 	return nil
 }
 
-// handleServer 处理 server 命令
-func handleServer(cli *Cli) error {
-	// 加载配置
-	cfg, err := config.LoadConfig(config.GetConfigPath())
-	if err != nil {
-		fmt.Printf("Warning: failed to load config: %v, using command line arguments\n", err)
-		cfg = &config.Config{
-			Port: cli.Port,
-		}
-	}
-
-	// 使用配置文件中的端口，如果命令行指定了端口则使用命令行的
-	port := cfg.Port
-	if cli.Port != 8080 {
-		port = cli.Port
-	}
-
-	fmt.Printf("Starting API server on %s:%d...\n", cli.Host, port)
-
-	server := api.NewServer()
-
-	fmt.Printf("Server listening on http://%s:%d\n", cli.Host, port)
-	fmt.Println("API endpoints:")
-	fmt.Println("  POST /api/ping - ICMP ping test")
-	fmt.Println("  POST /api/tcping - TCP connection test")
-	fmt.Println("  POST /api/website - Website test")
-	fmt.Println("  POST /api/traceroute - Traceroute")
-	fmt.Println("  POST /api/dns - DNS query")
-	fmt.Println("  POST /api/mtr - MTR test")
-	fmt.Println("  GET  /api/health - Health check")
-	fmt.Println("  GET  /api/status - Service status")
-
-	return server.Run(fmt.Sprintf("%s:%d", cli.Host, port))
-}
-
 // handleMtr 处理 mtr 命令
 func handleMtr(cli *Cli) error {
-	fmt.Printf("MTR testing to %s...\n", cli.Host)
+	if cli.Host == "" {
+		return fmt.Errorf("host is required")
+	}
 
-	service := modules.NewMtrService()
+	fmt.Printf("MTR testing to %s...\n", cli.Host)
+	fmt.Println()
+
+	// 存储每个跳点的统计信息
+	hopStatsMap := make(map[int]*modules.MtrHop)
+	// 用于跟踪已显示的跳点
+	shownHops := make(map[int]bool)
+
+	// 跳点回调函数 - 实时更新汇总信息
+	hopCallback := func(hop modules.MtrHop) error {
+		// 清除屏幕并重新显示
+		fmt.Print("\033[H\033[2J")
+		fmt.Printf("MTR testing to %s...\n", cli.Host)
+		fmt.Println()
+		fmt.Println("HOP:    Address                Loss%%  Sent    Last     Avg    Best   Worst       Packets")
+
+		// 按跳点编号排序显示
+		for i := 1; i <= cli.MaxHops; i++ {
+			if stats, ok := hopStatsMap[i]; ok {
+				address := stats.IP
+				if address == "" {
+					address = "???"
+				}
+				hostname := stats.Hostname
+				if hostname == "" {
+					hostname = "*"
+				}
+				fmt.Printf("  %2d:|--  %-21s  %4.1f%%   %3d     %5.1f   %5.1f   %5.1f   %5.1f         %s\n",
+					i, address, stats.Loss, stats.Snt, stats.Last, stats.Avg, stats.Best, stats.Wrst, stats.GetPacketStatusString())
+				shownHops[i] = true
+			}
+		}
+		return nil
+	}
+
+	// 数据包回调函数，实现实时回显
+	packetCallback := func(packet modules.MtrPacketResult) error {
+		// 更新统计信息
+		stats, ok := hopStatsMap[packet.Hop]
+		if !ok {
+			stats = &modules.MtrHop{
+				Hop:      packet.Hop,
+				IP:       packet.IP,
+				Hostname: packet.Hostname,
+				Snt:      0,
+				Loss:     100.0,
+				Last:     0,
+				Avg:      0,
+				Best:     999999,
+				Wrst:     0,
+				Packets:  []bool{},
+			}
+			hopStatsMap[packet.Hop] = stats
+		}
+
+		// 更新主机名和 IP（如果有新信息）
+		if packet.Hostname != "" {
+			stats.Hostname = packet.Hostname
+		}
+		if packet.IP != "" {
+			stats.IP = packet.IP
+		}
+
+		// 更新统计数据
+		stats.Snt++
+		if packet.Loss {
+			stats.Packets = append(stats.Packets, false)
+		} else {
+			stats.Packets = append(stats.Packets, true)
+			stats.Last = packet.RTT
+
+			// 更新最佳、最差值
+			if packet.RTT < stats.Best {
+				stats.Best = packet.RTT
+			}
+			if packet.RTT > stats.Wrst {
+				stats.Wrst = packet.RTT
+			}
+
+			// 重新计算平均值
+			total := 0.0
+			count := 0
+			for _, success := range stats.Packets {
+				if success {
+					// 这里需要存储 RTT 值，暂时用 Last 近似
+					total += stats.Last
+					count++
+				}
+			}
+			if count > 0 {
+				stats.Avg = total / float64(count)
+			}
+
+			// 重新计算丢包率
+			lossCount := 0
+			for _, success := range stats.Packets {
+				if !success {
+					lossCount++
+				}
+			}
+			stats.Loss = float64(lossCount) / float64(stats.Snt) * 100
+		}
+
+		return nil
+	}
+
+	service := modules.NewMtrServiceWithPacketCallback(hopCallback, packetCallback)
 	config := modules.NewMtrConfig()
 	config.Host = cli.Host
 	config.MaxHops = cli.MaxHops
@@ -443,23 +547,24 @@ func handleMtr(cli *Cli) error {
 	result, err := service.Mtr(config)
 	if err != nil {
 		fmt.Printf("MTR failed: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
+	// 显示最终结果
+	fmt.Print("\033[H\033[2J")
 	fmt.Printf("MTR results for %s:\n", result.Host)
-	fmt.Println("  Hops:")
-	fmt.Println("    Hop  Hostname           IP              Loss%   Snt   Last   Avg   Best   Wrst   StDev")
+	fmt.Println("HOP:    Address                Loss%%  Sent    Last     Avg    Best   Worst       Packets")
 	for _, hop := range result.Hops {
+		address := hop.IP
+		if address == "" {
+			address = "???"
+		}
 		hostname := hop.Hostname
 		if hostname == "" {
 			hostname = "*"
 		}
-		ip := hop.IP
-		if ip == "" {
-			ip = "*"
-		}
-		fmt.Printf("    %2d   %-15s  %-15s  %4.1f%%   %3d   %4.1f   %4.1f   %4.1f   %4.1f   %4.1f\n",
-			hop.Hop, hostname, ip, hop.Loss, hop.Snt, hop.Last, hop.Avg, hop.Best, hop.Wrst, hop.StDev)
+		fmt.Printf("  %2d:|--  %-21s  %4.1f%%   %3d     %5.1f   %5.1f   %5.1f   %5.1f         %s\n",
+			hop.Hop, address, hop.Loss, hop.Snt, hop.Last, hop.Avg, hop.Best, hop.Wrst, hop.GetPacketStatusString())
 	}
 
 	return nil
@@ -523,8 +628,42 @@ func handleUninstall(cli *Cli) error {
 	return nil
 }
 
+// handleServer 处理 server 命令
+func handleServer(cli *Cli) error {
+	// 创建 API 服务器
+	server := api.NewServer()
+
+	// 确定端口：如果命令行指定了端口，使用命令行端口；否则使用配置文件中的端口
+	port := cli.Port
+	if port == 0 {
+		port = server.GetConfig().Port
+	}
+
+	// 确定主机：如果命令行指定了主机，使用命令行主机；否则使用默认值
+	host := cli.Host
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
+	// 打印服务信息
+	fmt.Printf("Starting network_probe API server on %s:%d\n", host, port)
+	fmt.Println("Available endpoints:")
+	fmt.Println("  POST /api/ping - ICMP ping test")
+	fmt.Println("  POST /api/tcping - TCP connection test")
+	fmt.Println("  POST /api/website - Website test")
+	fmt.Println("  POST /api/traceroute - Traceroute")
+	fmt.Println("  POST /api/dns - DNS query")
+	fmt.Println("  POST /api/mtr - MTR test")
+	fmt.Println("  GET  /api/health - Health check")
+	fmt.Println("  GET  /api/status - Service status")
+
+	return server.Run(fmt.Sprintf("%s:%d", host, port))
+}
+
 // parsePortRange 解析端口范围
 func parsePortRange(rangeStr string) ([]int, error) {
+	var ports []int
+
 	if strings.Contains(rangeStr, "-") {
 		parts := strings.Split(rangeStr, "-")
 		if len(parts) != 2 {
@@ -541,22 +680,16 @@ func parsePortRange(rangeStr string) ([]int, error) {
 			return nil, fmt.Errorf("invalid end port: %v", err)
 		}
 
-		if start > end {
-			return nil, fmt.Errorf("invalid port range: start > end")
-		}
-
-		ports := make([]int, 0, end-start+1)
 		for i := start; i <= end; i++ {
 			ports = append(ports, i)
 		}
-
-		return ports, nil
 	} else {
 		port, err := strconv.Atoi(rangeStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid port: %v", err)
 		}
-
-		return []int{port}, nil
+		ports = append(ports, port)
 	}
+
+	return ports, nil
 }

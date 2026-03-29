@@ -1,15 +1,9 @@
 package modules
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"net"
-	"os/exec"
-	"regexp"
-	"runtime"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -42,6 +36,24 @@ type MtrHop struct {
 	Best     float64
 	Wrst     float64
 	StDev    float64
+	Packets  []bool // 数据包状态：true=成功，false=丢包
+}
+
+// GetPacketStatusString 返回数据包状态的可视化字符串
+func (h *MtrHop) GetPacketStatusString() string {
+	if len(h.Packets) == 0 {
+		return "?????"
+	}
+
+	status := ""
+	for _, success := range h.Packets {
+		if success {
+			status += "."
+		} else {
+			status += "?"
+		}
+	}
+	return status
 }
 
 // MtrResult 表示 mtr 结果
@@ -50,12 +62,42 @@ type MtrResult struct {
 	Hops []MtrHop
 }
 
+// MtrPacketResult 表示单个 MTR 数据包的结果
+type MtrPacketResult struct {
+	Hop      int     `json:"hop"`      // 跳点编号
+	IP       string  `json:"ip"`       // IP 地址
+	Hostname string  `json:"hostname"` // 主机名
+	RTT      float64 `json:"rtt"`      // RTT 值
+	Loss     bool    `json:"loss"`     // 是否丢包
+	TTL      int     `json:"ttl"`      // TTL 值
+}
+
 // MtrService 表示 mtr 服务
-type MtrService struct{}
+type MtrService struct {
+	// 回调函数，用于实时返回跳点结果
+	OnUpdate func(hop MtrHop) error
+	// 回调函数，用于实时返回单个数据包结果
+	OnPacketUpdate func(packet MtrPacketResult) error
+}
 
 // NewMtrService 创建一个新的 mtr 服务
 func NewMtrService() *MtrService {
 	return &MtrService{}
+}
+
+// NewMtrServiceWithCallback 创建一个带有回调函数的 mtr 服务
+func NewMtrServiceWithCallback(callback func(hop MtrHop) error) *MtrService {
+	return &MtrService{
+		OnUpdate: callback,
+	}
+}
+
+// NewMtrServiceWithPacketCallback 创建一个带有跳点和数据包回调函数的 mtr 服务
+func NewMtrServiceWithPacketCallback(hopCallback func(hop MtrHop) error, packetCallback func(packet MtrPacketResult) error) *MtrService {
+	return &MtrService{
+		OnUpdate:       hopCallback,
+		OnPacketUpdate: packetCallback,
+	}
 }
 
 // Mtr 执行 mtr 操作
@@ -66,172 +108,10 @@ func (s *MtrService) Mtr(config *MtrConfig) (*MtrResult, error) {
 		return nil, fmt.Errorf("failed to resolve host: %v", err)
 	}
 
-	// 根据平台选择不同的实现
-	switch runtime.GOOS {
-	case "linux":
-		// Linux 使用原生实现
-		return s.mtrNativeImplementation(config, hostAddr)
-	case "darwin":
-		// macOS 使用 mtr + sudo 实现
-		return s.mtrUsingSystemCommand(config, hostAddr)
-	default:
-		// 其他平台使用系统命令
-		return s.mtrUsingSystemCommand(config, hostAddr)
-	}
+	return s.mtrNativeImplementation(config, hostAddr)
 }
 
-// mtrUsingSystemCommand 使用系统 mtr 命令执行 mtr 操作
-func (s *MtrService) mtrUsingSystemCommand(config *MtrConfig, hostAddr *net.IPAddr) (*MtrResult, error) {
-	// 构建 mtr 命令
-	var cmd *exec.Cmd
-
-	// 首先尝试不使用 sudo 运行 mtr
-	cmd = exec.Command("mtr", "-n", "-c", strconv.Itoa(config.Count), "-m", strconv.Itoa(config.MaxHops), "-i", strconv.Itoa(config.Interval), config.Host)
-
-	// 捕获输出
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-
-	// 执行命令
-	err := cmd.Run()
-	output := out.String()
-
-	// 如果失败且是权限错误，尝试使用 sudo
-	if err != nil && (strings.Contains(output, "Failure to open") || strings.Contains(output, "Permission denied") || strings.Contains(output, "mtr-packet")) {
-		// 尝试使用 sudo
-		cmd = exec.Command("sudo", "mtr", "-n", "-c", strconv.Itoa(config.Count), "-m", strconv.Itoa(config.MaxHops), "-i", strconv.Itoa(config.Interval), config.Host)
-
-		// 重置输出缓冲区
-		out.Reset()
-		cmd.Stdout = &out
-		cmd.Stderr = &out
-
-		// 执行命令
-		err = cmd.Run()
-		output = out.String()
-	}
-
-	// 检查是否有错误
-	if err != nil {
-		// 检查是否是权限错误
-		if strings.Contains(output, "Failure to open") || strings.Contains(output, "Permission denied") || strings.Contains(output, "mtr-packet") {
-			return nil, fmt.Errorf("mtr requires root privileges. Please run with sudo or as root")
-		}
-		// 检查是否是命令不存在
-		if strings.Contains(output, "command not found") || strings.Contains(output, "not found") {
-			return nil, fmt.Errorf("mtr command not found. Please install mtr first")
-		}
-		// 其他错误，返回输出
-		return nil, fmt.Errorf("mtr execution failed: %v. Output: %s", err, output)
-	}
-
-	// 检查输出是否为空
-	if strings.TrimSpace(output) == "" {
-		return nil, fmt.Errorf("mtr returned no output")
-	}
-
-	// 解析 mtr 输出
-	result := &MtrResult{
-		Host: config.Host,
-		Hops: make([]MtrHop, 0),
-	}
-
-	// 解析每一行
-	lines := strings.Split(output, "\n")
-
-	// 尝试多种正则表达式格式
-	hopRegex1 := regexp.MustCompile(`^(\d+)\s+\|\s+([^\s]+)\s+\|\s+([\d.]+)%\s+\|\s+(\d+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)`)
-	hopRegex2 := regexp.MustCompile(`^(\d+)\s+([^\s]+)\s+([\d.]+)%\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)`)
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "Start:") || strings.HasPrefix(line, "HOST") || strings.Contains(line, "Failure to open") {
-			continue
-		}
-
-		// 尝试匹配跳点信息（格式1：带管道符）
-		matches := hopRegex1.FindStringSubmatch(line)
-		if len(matches) >= 10 {
-			hopNum, _ := strconv.Atoi(matches[1])
-			ip := strings.TrimSpace(matches[2])
-			loss, _ := strconv.ParseFloat(matches[3], 64)
-			snt, _ := strconv.Atoi(matches[4])
-			last, _ := strconv.ParseFloat(matches[5], 64)
-			avg, _ := strconv.ParseFloat(matches[6], 64)
-			best, _ := strconv.ParseFloat(matches[7], 64)
-			wrst, _ := strconv.ParseFloat(matches[8], 64)
-			stDev, _ := strconv.ParseFloat(matches[9], 64)
-
-			// 尝试解析主机名
-			hostname := ""
-			hostnames, err := net.LookupAddr(ip)
-			if err == nil && len(hostnames) > 0 {
-				hostname = hostnames[0]
-			}
-
-			hop := MtrHop{
-				Hop:      hopNum,
-				IP:       ip,
-				Hostname: hostname,
-				Loss:     loss,
-				Snt:      snt,
-				Last:     last,
-				Avg:      avg,
-				Best:     best,
-				Wrst:     wrst,
-				StDev:    stDev,
-			}
-			result.Hops = append(result.Hops, hop)
-			continue
-		}
-
-		// 尝试匹配跳点信息（格式2：空格分隔）
-		matches = hopRegex2.FindStringSubmatch(line)
-		if len(matches) >= 10 {
-			hopNum, _ := strconv.Atoi(matches[1])
-			ip := strings.TrimSpace(matches[2])
-			loss, _ := strconv.ParseFloat(matches[3], 64)
-			snt, _ := strconv.Atoi(matches[4])
-			last, _ := strconv.ParseFloat(matches[5], 64)
-			avg, _ := strconv.ParseFloat(matches[6], 64)
-			best, _ := strconv.ParseFloat(matches[7], 64)
-			wrst, _ := strconv.ParseFloat(matches[8], 64)
-			stDev, _ := strconv.ParseFloat(matches[9], 64)
-
-			// 尝试解析主机名
-			hostname := ""
-			hostnames, err := net.LookupAddr(ip)
-			if err == nil && len(hostnames) > 0 {
-				hostname = hostnames[0]
-			}
-
-			hop := MtrHop{
-				Hop:      hopNum,
-				IP:       ip,
-				Hostname: hostname,
-				Loss:     loss,
-				Snt:      snt,
-				Last:     last,
-				Avg:      avg,
-				Best:     best,
-				Wrst:     wrst,
-				StDev:    stDev,
-			}
-			result.Hops = append(result.Hops, hop)
-		}
-	}
-
-	// 检查是否有跳点信息
-	if len(result.Hops) == 0 {
-		return nil, fmt.Errorf("no mtr results found. Please check your network connection or mtr installation")
-	}
-
-	// 即使命令返回错误，我们也返回结果
-	return result, nil
-}
-
-// mtrNativeImplementation 使用原生方法执行 mtr 操作（Linux 平台）
+// mtrNativeImplementation 使用原生 ICMP 方法执行 mtr 操作
 func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IPAddr) (*MtrResult, error) {
 	result := &MtrResult{
 		Host: config.Host,
@@ -258,6 +138,7 @@ func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IP
 			Best:     0,
 			Wrst:     0,
 			StDev:    0,
+			Packets:  make([]bool, config.Count),
 		}
 
 		totalRTT := 0.0
@@ -276,6 +157,23 @@ func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IP
 			startTime := time.Now()
 			n, err := conn.WriteTo(echoRequest, &net.IPAddr{IP: hostAddr.IP})
 			if err != nil || n != len(echoRequest) {
+				// 丢包情况
+				hop.Packets[i] = false
+				packetResult := MtrPacketResult{
+					Hop:      ttl,
+					IP:       "*",
+					Hostname: "",
+					RTT:      0,
+					Loss:     true,
+					TTL:      ttl,
+				}
+				// 实时返回数据包结果
+				if s.OnPacketUpdate != nil {
+					err := s.OnPacketUpdate(packetResult)
+					if err != nil {
+						return nil, err
+					}
+				}
 				continue
 			}
 
@@ -284,6 +182,23 @@ func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IP
 			conn.SetReadDeadline(time.Now().Add(time.Second * 2))
 			n, addr, err := conn.ReadFrom(buffer)
 			if err != nil {
+				// 丢包情况
+				hop.Packets[i] = false
+				packetResult := MtrPacketResult{
+					Hop:      ttl,
+					IP:       "*",
+					Hostname: "",
+					RTT:      0,
+					Loss:     true,
+					TTL:      ttl,
+				}
+				// 实时返回数据包结果
+				if s.OnPacketUpdate != nil {
+					err := s.OnPacketUpdate(packetResult)
+					if err != nil {
+						return nil, err
+					}
+				}
 				continue
 			}
 
@@ -291,14 +206,37 @@ func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IP
 			totalRTT += rtt
 			successCount++
 			rtts = append(rtts, rtt)
+			hop.Packets[i] = true
 
 			// 解析响应
+			ip := ""
+			hostname := ""
 			if ipAddr, ok := addr.(*net.IPAddr); ok {
-				hop.IP = ipAddr.IP.String()
+				ip = ipAddr.IP.String()
+				hop.IP = ip
 				// 尝试解析主机名
-				hostnames, err := net.LookupAddr(hop.IP)
+				hostnames, err := net.LookupAddr(ip)
 				if err == nil && len(hostnames) > 0 {
-					hop.Hostname = hostnames[0]
+					hostname = hostnames[0]
+					hop.Hostname = hostname
+				}
+			}
+
+			// 成功接收到数据包
+			packetResult := MtrPacketResult{
+				Hop:      ttl,
+				IP:       ip,
+				Hostname: hostname,
+				RTT:      rtt,
+				Loss:     false,
+				TTL:      ttl,
+			}
+
+			// 实时返回数据包结果
+			if s.OnPacketUpdate != nil {
+				err := s.OnPacketUpdate(packetResult)
+				if err != nil {
+					return nil, err
 				}
 			}
 
@@ -339,6 +277,14 @@ func (s *MtrService) mtrNativeImplementation(config *MtrConfig, hostAddr *net.IP
 		}
 
 		result.Hops = append(result.Hops, hop)
+
+		// 实时返回结果
+		if s.OnUpdate != nil {
+			err := s.OnUpdate(hop)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		// 如果到达目标，停止
 		if hop.IP == hostAddr.IP.String() && successCount > 0 {
