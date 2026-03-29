@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"network-probe/internal/api"
+	"network-probe/internal/config"
 	"network-probe/internal/modules"
 	"network-probe/internal/version"
 )
@@ -608,23 +610,121 @@ func handlePortScan(cli *Cli) error {
 
 // handleInstall 处理 install 命令
 func handleInstall(cli *Cli) error {
-	fmt.Printf("Installing systemd service '%s'...\n", cli.ServiceName)
+	serviceName := cli.ServiceName
+	if serviceName == "" {
+		serviceName = "network_probe"
+	}
 
-	// 这里应该实现系统服务的安装逻辑
-	// 由于这是一个示例，这里暂时只打印信息
-	fmt.Printf("Service '%s' would be installed on %s:%d\n", cli.ServiceName, cli.Host, cli.Port)
+	// 确定主机和端口
+	host := cli.Host
+	if host == "" {
+		host = "0.0.0.0"
+	}
 
+	port := cli.Port
+	if port == 0 {
+		// 尝试从配置文件中读取端口
+		cfg, err := config.LoadConfig(config.GetConfigPath())
+		if err == nil && cfg.Port > 0 {
+			port = cfg.Port
+		} else {
+			port = 8080
+		}
+	}
+
+	fmt.Printf("Installing systemd service '%s'...\n", serviceName)
+
+	// 获取可执行文件路径
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	// 创建 systemd 服务文件内容
+	serviceFileContent := fmt.Sprintf(`[Unit]
+Description=Network Probe Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%s server -p %d
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+`, execPath, port)
+
+	// 服务文件路径
+	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+
+	// 写入服务文件
+	err = os.WriteFile(serviceFilePath, []byte(serviceFileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write service file: %v", err)
+	}
+
+	// 重新加载 systemd 配置
+	err = exec.Command("systemctl", "daemon-reload").Run()
+	if err != nil {
+		return fmt.Errorf("failed to reload systemd: %v", err)
+	}
+
+	// 启用服务
+	err = exec.Command("systemctl", "enable", serviceName).Run()
+	if err != nil {
+		return fmt.Errorf("failed to enable service: %v", err)
+	}
+
+	// 启动服务
+	err = exec.Command("systemctl", "start", serviceName).Run()
+	if err != nil {
+		return fmt.Errorf("failed to start service: %v", err)
+	}
+
+	fmt.Printf("Service '%s' installed and started successfully on %s:%d\n", serviceName, host, port)
 	return nil
 }
 
 // handleUninstall 处理 uninstall 命令
 func handleUninstall(cli *Cli) error {
-	fmt.Printf("Uninstalling systemd service '%s'...\n", cli.ServiceName)
+	serviceName := cli.ServiceName
+	if serviceName == "" {
+		serviceName = "network_probe"
+	}
 
-	// 这里应该实现系统服务的卸载逻辑
-	// 由于这是一个示例，这里暂时只打印信息
-	fmt.Printf("Service '%s' would be uninstalled\n", cli.ServiceName)
+	fmt.Printf("Uninstalling systemd service '%s'...\n", serviceName)
 
+	// 停止服务
+	err := exec.Command("systemctl", "stop", serviceName).Run()
+	if err != nil {
+		// 服务可能已经停止，继续执行
+		fmt.Printf("Warning: failed to stop service (it may already be stopped): %v\n", err)
+	}
+
+	// 禁用服务
+	err = exec.Command("systemctl", "disable", serviceName).Run()
+	if err != nil {
+		// 服务可能已经禁用，继续执行
+		fmt.Printf("Warning: failed to disable service (it may already be disabled): %v\n", err)
+	}
+
+	// 删除服务文件
+	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+	err = os.Remove(serviceFilePath)
+	if err != nil {
+		// 服务文件可能不存在，继续执行
+		fmt.Printf("Warning: failed to remove service file (it may not exist): %v\n", err)
+	}
+
+	// 重新加载 systemd 配置
+	err = exec.Command("systemctl", "daemon-reload").Run()
+	if err != nil {
+		return fmt.Errorf("failed to reload systemd: %v", err)
+	}
+
+	fmt.Printf("Service '%s' uninstalled successfully\n", serviceName)
 	return nil
 }
 
