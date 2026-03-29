@@ -847,17 +847,16 @@ func handleServer(cli *Cli) error {
 	}
 
 	// 打印服务信息
-	fmt.Printf("Starting network_probe API server on %s:%d\n", host, port)
-	fmt.Println("Available endpoints:")
-	fmt.Println("  POST /api/ping - ICMP ping test")
-	fmt.Println("  POST /api/tcping - TCP connection test")
-	fmt.Println("  POST /api/website - Website test")
-	fmt.Println("  POST /api/traceroute - Traceroute")
-	fmt.Println("  POST /api/dns - DNS query")
-	fmt.Println("  POST /api/mtr - MTR test")
-	fmt.Println("  GET  /api/health - Health check")
-	fmt.Println("  GET  /api/status - Service status")
-
+	fmt.Printf("starting network probe server on %s:%d\n", host, port)
+	// fmt.Println("Available endpoints:")
+	// fmt.Println("  POST /api/ping - ICMP ping test")
+	// fmt.Println("  POST /api/tcping - TCP connection test")
+	// fmt.Println("  POST /api/website - Website test")
+	// fmt.Println("  POST /api/traceroute - Traceroute")
+	// fmt.Println("  POST /api/dns - DNS query")
+	// fmt.Println("  POST /api/mtr - MTR test")
+	// fmt.Println("  GET  /api/health - Health check")
+	// fmt.Println("  GET  /api/status - Service status")
 	return server.Run(fmt.Sprintf("%s:%d", host, port))
 }
 

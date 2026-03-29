@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"network-probe/internal/config"
+	"network-probe/internal/version"
 )
 
 // ReportType 表示上报类型
@@ -27,7 +28,7 @@ const (
 const (
 	SystemInfo SubType = "system_info"
 
-	NodeStartup             SubType = "startup"
+	NodeInfo                SubType = "info"
 	NodeWebSocketConnect    SubType = "websocket_connect"
 	NodeWebSocketDisconnect SubType = "websocket_disconnect"
 
@@ -51,17 +52,115 @@ const (
 )
 
 // ReportData 表示上报数据结构
-type ReportDataStartup struct {
-	Msg string `json:"msg"`
-}
-
-// ReportData 表示上报数据结构
 type ReportData struct {
 	Type      ReportType  `json:"type"`
 	SubType   SubType     `json:"sub_type"`
 	Timestamp string      `json:"timestamp"`
-	Data      interface{} `json:"Data,omitempty"`
+	Data      interface{} `json:"data,omitempty"`
 	Version   string      `json:"version,omitempty"`
+}
+
+// PingRequest 表示 ping 请求
+type PingRequest struct {
+	Host    string `json:"host"`
+	Count   int    `json:"count"`
+	Timeout int    `json:"timeout"`
+}
+
+// PingReportData 表示 ping 上报数据
+type PingReportData struct {
+	Request PingRequest `json:"request"`
+	Result  interface{} `json:"result"`
+}
+
+// TcpingRequest 表示 tcping 请求
+type TcpingRequest struct {
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	Count   int    `json:"count"`
+	Timeout int    `json:"timeout"`
+}
+
+// TcpingReportData 表示 tcping 上报数据
+type TcpingReportData struct {
+	Request TcpingRequest `json:"request"`
+	Result  interface{}   `json:"result"`
+}
+
+// WebsiteRequest 表示 website 请求
+type WebsiteRequest struct {
+	URL             string `json:"url"`
+	Method          string `json:"method"`
+	Timeout         int    `json:"timeout"`
+	FollowRedirects bool   `json:"follow_redirects"`
+}
+
+// WebsiteReportData 表示 website 上报数据
+type WebsiteReportData struct {
+	Request WebsiteRequest `json:"request"`
+	Result  interface{}    `json:"result"`
+}
+
+// TracerouteRequest 表示 traceroute 请求
+type TracerouteRequest struct {
+	Host     string `json:"host"`
+	MaxHops  int    `json:"max_hops"`
+	Protocol string `json:"protocol"`
+}
+
+// TracerouteReportData 表示 traceroute 上报数据
+type TracerouteReportData struct {
+	Request TracerouteRequest `json:"request"`
+	Result  interface{}       `json:"result"`
+}
+
+// DnsRequest 表示 dns 请求
+type DnsRequest struct {
+	Domain     string `json:"domain"`
+	QueryType  string `json:"query_type"`
+	Nameserver string `json:"nameserver"`
+}
+
+// DnsReportData 表示 dns 上报数据
+type DnsReportData struct {
+	Request DnsRequest  `json:"request"`
+	Result  interface{} `json:"result"`
+}
+
+// MtrRequest 表示 mtr 请求
+type MtrRequest struct {
+	Host     string `json:"host"`
+	MaxHops  int    `json:"max_hops"`
+	Count    int    `json:"count"`
+	Interval int    `json:"interval"`
+}
+
+// MtrReportData 表示 mtr 上报数据
+type MtrReportData struct {
+	Request MtrRequest  `json:"request"`
+	Result  interface{} `json:"result"`
+}
+
+// StartupRequest 表示启动请求
+type StartupRequest struct {
+	Address string `json:"address"`
+	Version string `json:"version"`
+	Status  string `json:"status"`
+}
+
+// StartupReportData 表示启动上报数据
+type StartupReportData struct {
+	Msg string `json:"msg"`
+}
+
+// WebSocketConnectReportData 表示 WebSocket 连接上报数据
+type WebSocketConnectReportData struct {
+	Status string `json:"status"`
+}
+
+// SystemInfoReportData 表示系统信息上报数据
+type SystemInfoReportData struct {
+	Result interface{} `json:"result"`
 }
 
 // Report 上报数据
@@ -82,13 +181,10 @@ func Report(reportType ReportType, subType SubType, data map[string]interface{})
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	// 填充其他字段
-	if data, ok := data["data"]; ok {
-		reportData.Data = data
-	}
-	if version, ok := data["version"].(string); ok {
-		reportData.Version = version
-	}
+	reportData.Version = version.Version
+
+	fmt.Println(data)
+	reportData.Data = data
 
 	// 序列化数据
 	jsonData, err := json.Marshal(reportData)
@@ -125,11 +221,9 @@ func Report(reportType ReportType, subType SubType, data map[string]interface{})
 }
 
 // ReportStartup 上报启动日志
-func ReportStartup(msg string) error {
-	return Report(ReportTypeNode, NodeStartup, map[string]interface{}{
-		"address": address,
-		"version": version,
-		"status":  "started",
+func ReportNodeInfo(msg string) error {
+	return Report(ReportTypeNode, NodeInfo, map[string]interface{}{
+		"msg": msg,
 	})
 }
 
@@ -143,7 +237,7 @@ func ReportPing(request, result interface{}) error {
 
 // ReportTcping 上报 tcping 结果
 func ReportTcping(request, result interface{}) error {
-	return Report(ReportTypeRequestTcping, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestTcping, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -151,7 +245,7 @@ func ReportTcping(request, result interface{}) error {
 
 // ReportWebsite 上报 website 结果
 func ReportWebsite(request, result interface{}) error {
-	return Report(ReportTypeRequestWebsite, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebsite, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -159,7 +253,7 @@ func ReportWebsite(request, result interface{}) error {
 
 // ReportTraceroute 上报 traceroute 结果
 func ReportTraceroute(request, result interface{}) error {
-	return Report(ReportTypeRequestTraceroute, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestTraceroute, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -167,7 +261,7 @@ func ReportTraceroute(request, result interface{}) error {
 
 // ReportDns 上报 dns 结果
 func ReportDns(request, result interface{}) error {
-	return Report(ReportTypeRequestDns, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestDns, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -175,7 +269,7 @@ func ReportDns(request, result interface{}) error {
 
 // ReportMtr 上报 mtr 结果
 func ReportMtr(request, result interface{}) error {
-	return Report(ReportTypeRequestMtr, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestMtr, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -183,21 +277,21 @@ func ReportMtr(request, result interface{}) error {
 
 // ReportWebSocketConnect 上报 WebSocket 连接
 func ReportWebSocketConnect() error {
-	return Report(ReportTypeNodeWebSocketConnect, map[string]interface{}{
+	return Report(ReportTypeNode, NodeWebSocketConnect, map[string]interface{}{
 		"status": "connected",
 	})
 }
 
 // ReportWebSocketDisconnect 上报 WebSocket 断开连接
 func ReportWebSocketDisconnect() error {
-	return Report(ReportTypeNodeWebSocketDisconnect, map[string]interface{}{
+	return Report(ReportTypeNode, NodeWebSocketDisconnect, map[string]interface{}{
 		"status": "disconnected",
 	})
 }
 
 // ReportWebSocketPing 上报 WebSocket ping 结果
 func ReportWebSocketPing(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketPing, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketPing, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -205,7 +299,7 @@ func ReportWebSocketPing(request, result interface{}) error {
 
 // ReportWebSocketTcping 上报 WebSocket tcping 结果
 func ReportWebSocketTcping(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketTcping, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketTcping, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -213,7 +307,7 @@ func ReportWebSocketTcping(request, result interface{}) error {
 
 // ReportWebSocketWebsite 上报 WebSocket website 结果
 func ReportWebSocketWebsite(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketWebsite, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketWebsite, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -221,7 +315,7 @@ func ReportWebSocketWebsite(request, result interface{}) error {
 
 // ReportWebSocketTraceroute 上报 WebSocket traceroute 结果
 func ReportWebSocketTraceroute(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketTraceroute, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketTraceroute, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -229,7 +323,7 @@ func ReportWebSocketTraceroute(request, result interface{}) error {
 
 // ReportWebSocketDns 上报 WebSocket dns 结果
 func ReportWebSocketDns(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketDns, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketDns, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -237,7 +331,7 @@ func ReportWebSocketDns(request, result interface{}) error {
 
 // ReportWebSocketMtr 上报 WebSocket mtr 结果
 func ReportWebSocketMtr(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketMtr, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketMtr, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -245,14 +339,14 @@ func ReportWebSocketMtr(request, result interface{}) error {
 
 // ReportWebSocketMtrStart 上报 WebSocket mtr 开始
 func ReportWebSocketMtrStart(request interface{}) error {
-	return Report(ReportTypeRequestWebSocketMtrStart, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketMtrStart, map[string]interface{}{
 		"request": request,
 	})
 }
 
 // ReportWebSocketMtrComplete 上报 WebSocket mtr 完成
 func ReportWebSocketMtrComplete(request, result interface{}) error {
-	return Report(ReportTypeRequestWebSocketMtrComplete, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestWebSocketMtrComplete, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -260,7 +354,7 @@ func ReportWebSocketMtrComplete(request, result interface{}) error {
 
 // ReportCliPing 上报 CLI ping 结果
 func ReportCliPing(request, result interface{}) error {
-	return Report(ReportTypeRequestCliPing, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestCliPing, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -268,7 +362,7 @@ func ReportCliPing(request, result interface{}) error {
 
 // ReportCliTcping 上报 CLI tcping 结果
 func ReportCliTcping(request, result interface{}) error {
-	return Report(ReportTypeRequestCliTcping, map[string]interface{}{
+	return Report(ReportTypeRequest, RequestCliTcping, map[string]interface{}{
 		"request": request,
 		"result":  result,
 	})
@@ -276,28 +370,7 @@ func ReportCliTcping(request, result interface{}) error {
 
 // ReportSystemInfo 上报系统信息
 func ReportSystemInfo(systemInfo interface{}) error {
-	return Report(ReportTypeSystemInfo, map[string]interface{}{
+	return Report(ReportTypeSystem, SystemInfo, map[string]interface{}{
 		"result": systemInfo,
-	})
-}
-
-// ReportSystem 上报系统信息
-func ReportSystem(data interface{}) error {
-	return Report(ReportTypeSystem, map[string]interface{}{
-		"result": data,
-	})
-}
-
-// ReportNode 上报节点信息
-func ReportNode(data interface{}) error {
-	return Report(ReportTypeNode, map[string]interface{}{
-		"result": data,
-	})
-}
-
-// ReportRequest 上报请求信息
-func ReportRequest(data interface{}) error {
-	return Report(ReportTypeRequest, map[string]interface{}{
-		"result": data,
 	})
 }

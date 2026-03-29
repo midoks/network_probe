@@ -958,7 +958,7 @@ func (s *Server) Run(addr string) error {
 	}()
 
 	// 上报启动日志
-	if err := report.ReportStartup(addr, version.Version); err != nil {
+	if err := report.ReportNodeInfo("node start"); err != nil {
 		fmt.Printf("Failed to report startup: %v\n", err)
 	}
 
