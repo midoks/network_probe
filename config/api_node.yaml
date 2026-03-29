@@ -1,4 +1,4 @@
-report.endpoints: [ "http://127.0.0.1:8001" ]
+report.endpoints: [ "http://127.0.0.1:9998/api/logs" ]
 nodeId: "xxx"
 secret: "xxx"
-port: 8081
+port: 8082

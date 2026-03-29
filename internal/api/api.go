@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/utils/report"
+	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
 
@@ -143,41 +144,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 	}
 }
 
-// reportToEndpoints 上报数据到配置的端点
-func (s *Server) reportToEndpoints(data interface{}) {
-	if len(s.config.ReportEndpoints) == 0 {
-		return
-	}
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Printf("Failed to marshal report data: %v\n", err)
-		return
-	}
-
-	for _, endpoint := range s.config.ReportEndpoints {
-		go func(ep string) {
-			req, err := http.NewRequest("POST", ep, bytes.NewBuffer(jsonData))
-			if err != nil {
-				fmt.Printf("Failed to create request to %s: %v\n", ep, err)
-				return
-			}
-
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Node-ID", s.config.NodeID)
-			req.Header.Set("X-Secret", s.config.Secret)
-
-			client := &http.Client{Timeout: 10 * time.Second}
-			resp, err := client.Do(req)
-			if err != nil {
-				fmt.Printf("Failed to report to %s: %v\n", ep, err)
-				return
-			}
-			defer resp.Body.Close()
-		}(endpoint)
-	}
-}
-
 // healthCheck 健康检查
 func (s *Server) healthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
@@ -236,6 +202,9 @@ func (s *Server) handlePing(c *gin.Context) {
 		return
 	}
 
+	// 上报结果
+	report.ReportPing(req, result)
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -273,6 +242,9 @@ func (s *Server) handleTcping(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 上报结果
+	report.ReportTcping(req, result)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -312,6 +284,9 @@ func (s *Server) handleWebsite(c *gin.Context) {
 		return
 	}
 
+	// 上报结果
+	report.ReportWebsite(req, result)
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -347,6 +322,9 @@ func (s *Server) handleTraceroute(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 上报结果
+	report.ReportTraceroute(req, result)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -394,6 +372,9 @@ func (s *Server) handleDns(c *gin.Context) {
 		return
 	}
 
+	// 上报结果
+	report.ReportDns(req, result)
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -435,6 +416,9 @@ func (s *Server) handleMtr(c *gin.Context) {
 		return
 	}
 
+	// 上报结果
+	report.ReportMtr(req, result)
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -472,11 +456,15 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 		return
 	}
 
+	// 上报 WebSocket 连接
+	report.ReportWebSocketConnect()
 	// 处理消息
 	for {
 		var msg WebSocketMessage
 		if err := conn.ReadJSON(&msg); err != nil {
 			// 客户端断开连接
+			// 上报 WebSocket 断开连接
+			report.ReportWebSocketDisconnect()
 			break
 		}
 
@@ -558,6 +546,9 @@ func (s *Server) handleWebSocketPing(payload json.RawMessage) WebSocketResponse 
 		}
 	}
 
+	// 上报结果
+	report.ReportWebSocketPing(req, result)
+
 	return WebSocketResponse{
 		Type:   "ping",
 		Status: "success",
@@ -605,6 +596,9 @@ func (s *Server) handleWebSocketTcping(payload json.RawMessage) WebSocketRespons
 			Message: err.Error(),
 		}
 	}
+
+	// 上报结果
+	report.ReportWebSocketTcping(req, result)
 
 	return WebSocketResponse{
 		Type:   "tcping",
@@ -654,6 +648,9 @@ func (s *Server) handleWebSocketWebsite(payload json.RawMessage) WebSocketRespon
 		}
 	}
 
+	// 上报结果
+	report.ReportWebSocketWebsite(req, result)
+
 	return WebSocketResponse{
 		Type:   "website",
 		Status: "success",
@@ -699,6 +696,9 @@ func (s *Server) handleWebSocketTraceroute(payload json.RawMessage) WebSocketRes
 			Message: err.Error(),
 		}
 	}
+
+	// 上报结果
+	report.ReportWebSocketTraceroute(req, result)
 
 	return WebSocketResponse{
 		Type:   "traceroute",
@@ -759,6 +759,9 @@ func (s *Server) handleWebSocketDns(payload json.RawMessage) WebSocketResponse {
 		}
 	}
 
+	// 上报结果
+	report.ReportWebSocketDns(req, result)
+
 	return WebSocketResponse{
 		Type:   "dns",
 		Status: "success",
@@ -810,6 +813,9 @@ func (s *Server) handleWebSocketMtr(payload json.RawMessage) WebSocketResponse {
 		}
 	}
 
+	// 上报结果
+	report.ReportWebSocketMtr(req, result)
+
 	return WebSocketResponse{
 		Type:   "mtr",
 		Status: "success",
@@ -848,6 +854,8 @@ func (s *Server) handleWebSocketMtrWithUpdates(conn *websocket.Conn, msg WebSock
 		req.Interval = 1
 	}
 
+	// 上报 MTR 请求开始
+	report.ReportWebSocketMtrStart(req)
 	// 创建带有回调函数的 MTR 服务
 	hopCallback := func(hop modules.MtrHop) error {
 		// 发送跳点更新
@@ -890,6 +898,9 @@ func (s *Server) handleWebSocketMtrWithUpdates(conn *websocket.Conn, msg WebSock
 		return
 	}
 
+	// 上报 MTR 结果
+	report.ReportWebSocketMtrComplete(req, result)
+
 	// 发送最终结果
 	response := WebSocketResponse{
 		Type:   "mtr",
@@ -907,5 +918,40 @@ func (s *Server) GetConfig() *config.Config {
 
 // Run 启动服务器
 func (s *Server) Run(addr string) error {
-	return s.router.Run(addr)
+	// 启动 HTTP 服务器
+	go func() {
+		if err := s.router.Run(addr); err != nil {
+			fmt.Printf("Server error: %v\n", err)
+		}
+	}()
+
+	// 上报启动日志
+	report.ReportStartup(addr, version.Version)
+
+	// 启动定时上报系统信息的任务
+	go func() {
+		fmt.Println("定时上报系统信息任务已启动")
+		// 每 10 秒上报一次系统信息
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			<-ticker.C
+			fmt.Println("定时器触发，开始获取系统信息")
+			// 获取系统信息
+			systemInfo, err := system.GetSystemInfo()
+			if err != nil {
+				fmt.Printf("获取系统信息失败: %v\n", err)
+				continue
+			}
+			fmt.Println("获取系统信息成功，开始上报")
+
+			// 上报系统信息
+			report.ReportSystemInfo(systemInfo)
+			fmt.Println("系统信息上报完成")
+		}
+	}()
+
+	// 保持程序运行
+	select {}
 }

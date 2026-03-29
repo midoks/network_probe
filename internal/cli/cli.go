@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"network-probe/internal/api"
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/utils/report"
+	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
 
@@ -93,6 +96,14 @@ func Run() error {
 				}
 			case "version":
 				fmt.Printf("network_probe version %s\n", version.Version)
+			case "sysinfo":
+				if err := handleSysinfo(cli); err != nil {
+					os.Exit(1)
+				}
+			case "gc":
+				if err := handleGC(cli); err != nil {
+					os.Exit(1)
+				}
 			default:
 				fmt.Printf("Unknown command: %s\n", cli.Command)
 				os.Exit(1)
@@ -263,6 +274,30 @@ func Run() error {
 		},
 	}
 
+	// Sysinfo 命令
+	var sysinfoCmd = &cobra.Command{
+		Use:   "sysinfo",
+		Short: "Show system information",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "sysinfo"
+			if err := handleSysinfo(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	// GC 命令
+	var gcCmd = &cobra.Command{
+		Use:   "gc",
+		Short: "Run garbage collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.Command = "gc"
+			if err := handleGC(cli); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
 	// 添加子命令
 	rootCmd.AddCommand(pingCmd)
 	rootCmd.AddCommand(tcpingCmd)
@@ -275,8 +310,62 @@ func Run() error {
 	rootCmd.AddCommand(uninstallCmd)
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(sysinfoCmd)
+	rootCmd.AddCommand(gcCmd)
 
 	return rootCmd.Execute()
+}
+
+// handleSysinfo 处理 sysinfo 命令
+func handleSysinfo(cli *Cli) error {
+	// 获取系统信息
+	systemInfo, err := system.GetSystemInfo()
+	if err != nil {
+		fmt.Printf("Failed to get system info: %v\n", err)
+		return err
+	}
+
+	// 打印系统信息
+	fmt.Println("System Information:")
+	fmt.Println("===================")
+	fmt.Printf("Online Status:      %s\n", systemInfo.OnlineStatus)
+	fmt.Printf("Download Bandwidth: %s\n", systemInfo.DownloadBandwidth)
+	fmt.Printf("Upload Bandwidth:   %s\n", systemInfo.UploadBandwidth)
+	fmt.Printf("Connections:        %s\n", systemInfo.Connections)
+	fmt.Printf("Access Rate:        %s\n", systemInfo.AccessRate)
+	fmt.Printf("Attack Rate:        %s\n", systemInfo.AttackRate)
+	fmt.Printf("Cache Disk Usage:   %s\n", systemInfo.CacheDiskUsage)
+	fmt.Printf("Max Disk Write:     %s\n", systemInfo.MaxDiskWriteSpeed)
+	fmt.Printf("Memory Cache Usage: %s\n", systemInfo.MemoryCacheUsage)
+	fmt.Printf("CPU Usage:          %s\n", systemInfo.CPUUsage)
+	fmt.Printf("Memory Usage:       %s\n", systemInfo.MemoryUsage)
+	fmt.Printf("Total Memory:       %s\n", systemInfo.TotalMemory)
+	fmt.Printf("Load:               %s\n", systemInfo.Load)
+	fmt.Printf("Monthly Traffic:    %s\n", systemInfo.MonthlyTraffic)
+	fmt.Printf("Yesterday Traffic:  %s\n", systemInfo.YesterdayTraffic)
+	fmt.Printf("Today Traffic:      %s\n", systemInfo.TodayTraffic)
+
+	// 上报系统信息
+	report.ReportSystemInfo(systemInfo)
+
+	return nil
+}
+
+// handleGC 处理 gc 命令
+func handleGC(cli *Cli) error {
+	// 记录开始时间
+	start := time.Now()
+
+	// 执行垃圾回收
+	runtime.GC()
+
+	// 计算执行时间
+	duration := time.Since(start)
+
+	// 打印结果
+	fmt.Printf("ok, cost: %v, pause: %v\n", duration, duration)
+
+	return nil
 }
 
 // handlePing 处理 ping 命令
@@ -327,7 +416,15 @@ func handleTcping(cli *Cli) error {
 		return err
 	}
 
-	fmt.Printf("TCPing results for %s:%d:\n", result.Host, result.Port)
+	// 上报结果
+	report.ReportCliTcping(map[string]interface{}{
+		"host":    cli.Host,
+		"port":    cli.Port,
+		"count":   cli.Count,
+		"timeout": cli.Timeout,
+	}, result)
+
+	fmt.Printf("  TCPing results for %s:%d:\n", result.Host, result.Port)
 	fmt.Printf("  Connections attempted: %d\n", result.Attempts)
 	fmt.Printf("  Connections successful: %d\n", result.SuccessfulAttempts)
 	fmt.Printf("  Connection loss: %.1f%%\n", result.PacketLoss)
@@ -694,20 +791,20 @@ func handleUninstall(cli *Cli) error {
 		serviceName = "network_probe"
 	}
 
-	fmt.Printf("Uninstalling systemd service '%s'...\n", serviceName)
+	fmt.Printf("uninstalling systemd service '%s'...\n", serviceName)
 
 	// 停止服务
 	err := exec.Command("systemctl", "stop", serviceName).Run()
 	if err != nil {
 		// 服务可能已经停止，继续执行
-		fmt.Printf("Warning: failed to stop service (it may already be stopped): %v\n", err)
+		fmt.Printf("warning: failed to stop service (it may already be stopped): %v\n", err)
 	}
 
 	// 禁用服务
 	err = exec.Command("systemctl", "disable", serviceName).Run()
 	if err != nil {
 		// 服务可能已经禁用，继续执行
-		fmt.Printf("Warning: failed to disable service (it may already be disabled): %v\n", err)
+		fmt.Printf("warning: failed to disable service (it may already be disabled): %v\n", err)
 	}
 
 	// 删除服务文件
@@ -715,7 +812,7 @@ func handleUninstall(cli *Cli) error {
 	err = os.Remove(serviceFilePath)
 	if err != nil {
 		// 服务文件可能不存在，继续执行
-		fmt.Printf("Warning: failed to remove service file (it may not exist): %v\n", err)
+		fmt.Printf("warning: failed to remove service file (it may not exist): %v\n", err)
 	}
 
 	// 重新加载 systemd 配置
@@ -724,7 +821,7 @@ func handleUninstall(cli *Cli) error {
 		return fmt.Errorf("failed to reload systemd: %v", err)
 	}
 
-	fmt.Printf("Service '%s' uninstalled successfully\n", serviceName)
+	fmt.Printf("service '%s' uninstalled successfully\n", serviceName)
 	return nil
 }
 
