@@ -55,7 +55,7 @@ const (
 type ReportData struct {
 	Type      ReportType  `json:"type"`
 	SubType   SubType     `json:"sub_type"`
-	Timestamp string      `json:"timestamp"`
+	Timestamp int64       `json:"timestamp"`
 	Data      interface{} `json:"data,omitempty"`
 	Version   string      `json:"version,omitempty"`
 }
@@ -178,7 +178,7 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 	reportData := ReportData{
 		Type:      reportType,
 		SubType:   subType,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: time.Now().Unix(),
 	}
 
 	reportData.Version = version.Version
@@ -195,10 +195,11 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 	// 上报到每个端点（同步）
 	var lastError error
 	for _, endpoint := range cfg.ReportEndpoints {
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+		post_url := endpoint + "/api/logs"
+		req, err := http.NewRequest("POST", post_url, bytes.NewBuffer(jsonData))
 		if err != nil {
-			lastError = fmt.Errorf("failed to create request to %s: %v", endpoint, err)
-			fmt.Printf("Failed to create request to %s: %v\n", endpoint, err)
+			lastError = fmt.Errorf("failed to create request to %s: %v", post_url, err)
+			fmt.Printf("Failed to create request to %s: %v\n", post_url, err)
 			continue
 		}
 
@@ -209,12 +210,12 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			lastError = fmt.Errorf("failed to report to %s: %v", endpoint, err)
-			fmt.Printf("Failed to report to %s: %v\n", endpoint, err)
+			lastError = fmt.Errorf("failed to report to %s: %v", post_url, err)
+			fmt.Printf("Failed to report to %s: %v\n", post_url, err)
 			continue
 		}
 		defer resp.Body.Close()
-		fmt.Printf("Reported to %s successfully: %v\n", endpoint, resp.Status)
+		fmt.Printf("Reported to %s successfully: %v\n", post_url, resp.Status)
 	}
 
 	return lastError
@@ -223,7 +224,7 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 // ReportStartup 上报启动日志
 func ReportNodeInfo(msg string) error {
 	return Report(ReportTypeNode, NodeInfo, map[string]interface{}{
-		"msg": msg,
+		"description": msg,
 	})
 }
 
@@ -371,4 +372,18 @@ func ReportCliTcping(request, result interface{}) error {
 // ReportSystemInfo 上报节点运行信息
 func ReportSystemInfo(data interface{}) error {
 	return Report(ReportTypeSystem, SystemInfo, data)
+}
+
+// ReportErrorLog 上报错误日志
+func ReportErrorLog(entry interface{}) error {
+	return Report(ReportTypeSystem, "error", map[string]interface{}{
+		"data": entry,
+	})
+}
+
+// ReportCrashLog 上报崩溃日志
+func ReportCrashLog(entry interface{}) error {
+	return Report(ReportTypeSystem, "crash", map[string]interface{}{
+		"data": entry,
+	})
 }

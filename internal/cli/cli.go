@@ -14,6 +14,7 @@ import (
 	"network-probe/internal/api"
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/utils/logger"
 	"network-probe/internal/utils/report"
 	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
@@ -348,6 +349,14 @@ func handleSysinfo(cli *Cli) error {
 	// 上报系统信息
 	if err := report.ReportSystemInfo(systemInfo); err != nil {
 		fmt.Printf("上报系统信息失败: %v\n", err)
+	}
+
+	// 上报错误日志和崩溃日志
+	if err := logger.ReportErrorLogs(); err != nil {
+		fmt.Printf("上报错误日志失败: %v\n", err)
+	}
+	if err := logger.ReportCrashLogs(); err != nil {
+		fmt.Printf("上报崩溃日志失败: %v\n", err)
 	}
 
 	return nil

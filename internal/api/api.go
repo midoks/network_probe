@@ -12,6 +12,7 @@ import (
 
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
+	"network-probe/internal/utils/logger"
 	"network-probe/internal/utils/report"
 	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
@@ -958,9 +959,19 @@ func (s *Server) Run(addr string) error {
 	}()
 
 	// 上报启动日志
-	if err := report.ReportNodeInfo("node start"); err != nil {
+	if err := report.ReportNodeInfo("starting ..."); err != nil {
 		fmt.Printf("Failed to report startup: %v\n", err)
 	}
+
+	// 上报错误日志和崩溃日志
+	go func() {
+		if err := logger.ReportErrorLogs(); err != nil {
+			fmt.Printf("Failed to report error logs: %v\n", err)
+		}
+		if err := logger.ReportCrashLogs(); err != nil {
+			fmt.Printf("Failed to report crash logs: %v\n", err)
+		}
+	}()
 
 	// 启动定时上报系统信息的任务
 	go func() {

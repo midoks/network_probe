@@ -32,7 +32,7 @@ type SystemInfo struct {
 // GetSystemInfo 获取系统状态信息
 func GetSystemInfo() (*SystemInfo, error) {
 	info := &SystemInfo{
-		OnlineStatus: "在线", // 默认为在线
+		OnlineStatus: "在线",
 	}
 
 	// 获取带宽信息

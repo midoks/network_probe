@@ -1,4 +1,4 @@
-report.endpoints: [ "http://127.0.0.1:9998/api/logs" ]
-nodeId: "xxx"
-secret: "xxx"
+report.endpoints: [ "http://127.0.0.1:9998" ]
+nodeId: "BBBLWHMPHCFAGYZWGZURKXZVPYVHGNMG"
+secret: "KROEXBNANDIDCWRYMNQHPIVSALGXWPAQ"
 port: 8082
