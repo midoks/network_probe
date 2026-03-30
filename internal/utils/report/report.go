@@ -163,6 +163,27 @@ type SystemInfoReportData struct {
 	Result interface{} `json:"result"`
 }
 
+func init() {
+
+	var ticker = time.NewTicker(60 * time.Second)
+
+	go func() {
+		for range ticker.C {
+			// var tr = trackers.Begin("UPLOAD_REMOTE_LOGS")
+			err := uploadLogs()
+			// tr.End()
+			if err != nil {
+				fmt.Println("[LOG]upload logs failed: " + err.Error())
+			}
+		}
+	}()
+}
+
+func uploadLogs() error {
+	fmt.Println("xxx.....xxxx")
+	return nil
+}
+
 // Report 上报数据
 func Report(reportType ReportType, subType SubType, data interface{}) error {
 	cfg, err := config.LoadConfig(config.GetConfigPath())
