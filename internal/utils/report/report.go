@@ -163,25 +163,76 @@ type SystemInfoReportData struct {
 	Result interface{} `json:"result"`
 }
 
-func init() {
-
-	var ticker = time.NewTicker(60 * time.Second)
-
-	go func() {
-		for range ticker.C {
-			// var tr = trackers.Begin("UPLOAD_REMOTE_LOGS")
-			err := uploadLogs()
-			// tr.End()
-			if err != nil {
-				fmt.Println("[LOG]upload logs failed: " + err.Error())
-			}
-		}
-	}()
+// 全局 channel 用于控制定时上传
+type uploadTask struct {
+	reportType ReportType
+	subType    SubType
+	data       interface{}
 }
 
-func uploadLogs() error {
-	fmt.Println("xxx.....xxxx")
-	return nil
+var (
+	uploadChan chan uploadTask
+	stopChan   chan struct{}
+	isRunning  bool
+)
+
+func init() {
+	// 初始化 channel
+	uploadChan = make(chan uploadTask, 100)
+	stopChan = make(chan struct{})
+	isRunning = true
+
+	// 启动定时上传 goroutine
+	go uploadWorker()
+}
+
+// uploadWorker 定时上传工作器
+func uploadWorker() {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// 定时触发上传日志
+			fmt.Println("[LOG]定时上传任务触发")
+		case task := <-uploadChan:
+			// 处理实时上传任务
+			if err := Report(task.reportType, task.subType, task.data); err != nil {
+				fmt.Printf("[LOG]upload task failed: %v\n", err)
+			}
+		case <-stopChan:
+			// 停止上传
+			fmt.Println("[LOG]upload worker stopped")
+			return
+		}
+	}
+}
+
+// StopUploadWorker 停止上传工作器
+func StopUploadWorker() {
+	if isRunning {
+		close(stopChan)
+		isRunning = false
+	}
+}
+
+// QueueUpload 将上传任务加入队列
+func QueueUpload(reportType ReportType, subType SubType, data interface{}) {
+	select {
+	case uploadChan <- uploadTask{
+		reportType: reportType,
+		subType:    subType,
+		data:       data,
+	}:
+		// 任务已加入队列
+	default:
+		// 队列已满，直接上报
+		fmt.Println("[LOG]upload queue is full, reporting directly")
+		if err := Report(reportType, subType, data); err != nil {
+			fmt.Printf("[LOG]direct upload failed: %v\n", err)
+		}
+	}
 }
 
 // Report 上报数据
@@ -203,8 +254,6 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 	}
 
 	reportData.Version = version.Version
-
-	fmt.Println(data)
 	reportData.Data = data
 
 	// 序列化数据
@@ -216,11 +265,10 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 	// 上报到每个端点（同步）
 	var lastError error
 	for _, endpoint := range cfg.ReportEndpoints {
-		post_url := endpoint + "/api/logs"
-		req, err := http.NewRequest("POST", post_url, bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 		if err != nil {
-			lastError = fmt.Errorf("failed to create request to %s: %v", post_url, err)
-			fmt.Printf("Failed to create request to %s: %v\n", post_url, err)
+			lastError = fmt.Errorf("failed to create request to %s: %v", endpoint, err)
+			fmt.Printf("Failed to create request to %s: %v\n", endpoint, err)
 			continue
 		}
 
@@ -231,12 +279,12 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			lastError = fmt.Errorf("failed to report to %s: %v", post_url, err)
-			fmt.Printf("Failed to report to %s: %v\n", post_url, err)
+			lastError = fmt.Errorf("failed to report to %s: %v", endpoint, err)
+			fmt.Printf("Failed to report to %s: %v\n", endpoint, err)
 			continue
 		}
 		defer resp.Body.Close()
-		fmt.Printf("Reported to %s successfully: %v\n", post_url, resp.Status)
+		fmt.Printf("Reported to %s successfully: %v\n", endpoint, resp.Status)
 	}
 
 	return lastError
@@ -245,7 +293,7 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 // ReportStartup 上报启动日志
 func ReportNodeInfo(msg string) error {
 	return Report(ReportTypeNode, NodeInfo, map[string]interface{}{
-		"description": msg,
+		"msg": msg,
 	})
 }
 
@@ -397,14 +445,14 @@ func ReportSystemInfo(data interface{}) error {
 
 // ReportErrorLog 上报错误日志
 func ReportErrorLog(entry interface{}) error {
-	return Report(ReportTypeSystem, "error", map[string]interface{}{
+	return Report(ReportTypeSystem, "error_log", map[string]interface{}{
 		"data": entry,
 	})
 }
 
 // ReportCrashLog 上报崩溃日志
 func ReportCrashLog(entry interface{}) error {
-	return Report(ReportTypeSystem, "crash", map[string]interface{}{
+	return Report(ReportTypeSystem, "crash_log", map[string]interface{}{
 		"data": entry,
 	})
 }
