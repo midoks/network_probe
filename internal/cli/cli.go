@@ -347,7 +347,7 @@ func handleSysinfo(cli *Cli) error {
 	fmt.Printf("Today Traffic:      %s\n", systemInfo.TodayTraffic)
 
 	// 上报系统信息
-	if err := report.ReportSystemInfo(systemInfo); err != nil {
+	if err := report.ReportSystemInfo(); err != nil {
 		fmt.Printf("上报系统信息失败: %v\n", err)
 	}
 

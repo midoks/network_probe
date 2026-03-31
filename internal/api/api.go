@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -14,7 +15,6 @@ import (
 	"network-probe/internal/modules"
 	"network-probe/internal/utils/logger"
 	"network-probe/internal/utils/report"
-	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
 
@@ -31,6 +31,8 @@ var upgrader = websocket.Upgrader{
 		return true // 允许所有来源
 	},
 }
+
+var activeConnections int64
 
 // WebSocketMessage 表示 WebSocket 消息
 type WebSocketMessage struct {
@@ -94,6 +96,8 @@ func NewServer() *Server {
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
+	s.router.Use(s.connectionCounterMiddleware())
+
 	// 健康检查（不需要认证）
 	s.router.GET("/api/health", s.healthCheck)
 	s.router.GET("/api/status", s.status)
@@ -112,13 +116,37 @@ func (s *Server) setupRoutes() {
 		api.POST("/mtr", s.handleMtr)
 	}
 
+	s.router.GET("/api/stats", func(c *gin.Context) {
+		current := atomic.LoadInt64(&activeConnections)
+		c.JSON(http.StatusOK, gin.H{
+			"active_connections": current,
+		})
+		// c.String(http.StatusOK, fmt.Sprintf("%d", current))
+	})
+
 	// 根路径
 	s.router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Network Probe API Server")
 	})
 
+	s.router.GET("/ping", func(c *gin.Context) {
+		time.Sleep(2 * time.Second)
+		c.String(http.StatusOK, "pong")
+	})
+
 	// WebSocket 路由（需要认证）
 	s.router.GET("/ws", s.handleWebSocket)
+}
+
+// 连接统计中间件
+func (s *Server) connectionCounterMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 请求到来时计数器+1
+		atomic.AddInt64(&activeConnections, 1)
+		// 确保在请求结束时计数器-1
+		defer atomic.AddInt64(&activeConnections, -1)
+		c.Next()
+	}
 }
 
 // authMiddleware 认证中间件
@@ -458,6 +486,10 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+
+	// 增加活跃连接计数
+	atomic.AddInt64(&activeConnections, 1)
+	defer atomic.AddInt64(&activeConnections, -1)
 
 	// 发送连接成功消息
 	welcome := WebSocketResponse{
@@ -959,7 +991,7 @@ func (s *Server) Run(addr string) error {
 	}()
 
 	// 上报启动日志
-	if err := report.ReportNodeInfo("starting ..."); err != nil {
+	if err := report.ReportNodeInfo("startup", "starting ..."); err != nil {
 		fmt.Printf("Failed to report startup: %v\n", err)
 	}
 
@@ -982,20 +1014,8 @@ func (s *Server) Run(addr string) error {
 
 		for {
 			<-ticker.C
-			fmt.Println("定时器触发，开始获取系统信息")
-			// 获取系统信息
-			systemInfo, err := system.GetSystemInfo()
-			if err != nil {
-				fmt.Printf("获取系统信息失败: %v\n", err)
-				continue
-			}
-			fmt.Println("获取系统信息成功，开始上报")
-
-			// 上报系统信息
-			if err := report.ReportSystemInfo(systemInfo); err != nil {
-				fmt.Printf("上报系统信息失败: %v\n", err)
-			} else {
-				fmt.Println("系统信息上报完成")
+			if err := report.ReportSystemInfo(); err != nil {
+				fmt.Printf("Failed to report sysinfo logs: %v\n", err)
 			}
 		}
 	}()

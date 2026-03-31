@@ -8,57 +8,9 @@ import (
 	"time"
 
 	"network-probe/internal/config"
+	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
-
-// ReportType 表示上报类型
-type ReportType string
-
-// SubType 表示上报子类型
-type SubType string
-
-// 上报类型常量
-const (
-	// 系统信息上报类型
-	ReportTypeSystem  ReportType = "sys"
-	ReportTypeNode    ReportType = "node"
-	ReportTypeRequest ReportType = "request"
-)
-
-const (
-	SystemInfo SubType = "system_info"
-
-	NodeInfo                SubType = "info"
-	NodeWebSocketConnect    SubType = "websocket_connect"
-	NodeWebSocketDisconnect SubType = "websocket_disconnect"
-
-	// 功能请求上报类型
-	RequestPing                 SubType = "ping"
-	RequestTcping               SubType = "tcping"
-	RequestWebsite              SubType = "website"
-	RequestTraceroute           SubType = "traceroute"
-	RequestDns                  SubType = "dns"
-	RequestMtr                  SubType = "mtr"
-	RequestWebSocketPing        SubType = "websocket_ping"
-	RequestWebSocketTcping      SubType = "websocket_tcping"
-	RequestWebSocketWebsite     SubType = "websocket_website"
-	RequestWebSocketTraceroute  SubType = "websocket_traceroute"
-	RequestWebSocketDns         SubType = "websocket_dns"
-	RequestWebSocketMtr         SubType = "websocket_mtr"
-	RequestWebSocketMtrStart    SubType = "websocket_mtr_start"
-	RequestWebSocketMtrComplete SubType = "websocket_mtr_complete"
-	RequestCliPing              SubType = "cli_ping"
-	RequestCliTcping            SubType = "cli_tcping"
-)
-
-// ReportData 表示上报数据结构
-type ReportData struct {
-	Type      ReportType  `json:"type"`
-	SubType   SubType     `json:"sub_type"`
-	Timestamp int64       `json:"timestamp"`
-	Data      interface{} `json:"data,omitempty"`
-	Version   string      `json:"version,omitempty"`
-}
 
 // PingRequest 表示 ping 请求
 type PingRequest struct {
@@ -235,8 +187,33 @@ func QueueUpload(reportType ReportType, subType SubType, data interface{}) {
 	}
 }
 
-// Report 上报数据
+// Report 上报数据（同步）
 func Report(reportType ReportType, subType SubType, data interface{}) error {
+	// 序列化数据
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data: %v", err)
+	}
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Type:      reportType,
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+		Data:      string(dataBytes),
+	}
+
+	// 序列化上报数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report data: %v", err)
+	}
+
+	return ReportBytes(reportData)
+}
+
+// ReportBytes 上报数据（字节数组）
+func ReportBytes(data []byte) error {
 	cfg, err := config.LoadConfig(config.GetConfigPath())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %v", err)
@@ -246,28 +223,12 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 		return fmt.Errorf("no report endpoints configured")
 	}
 
-	// 准备上报数据
-	reportData := ReportData{
-		Type:      reportType,
-		SubType:   subType,
-		Timestamp: time.Now().Unix(),
-	}
-
-	reportData.Version = version.Version
-	reportData.Data = data
-
-	// 序列化数据
-	jsonData, err := json.Marshal(reportData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report data: %v", err)
-	}
-
 	// 上报到每个端点（同步）
 	var lastError error
 	for _, endpoint := range cfg.ReportEndpoints {
 
 		url := endpoint + "/api/logs"
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 		if err != nil {
 			lastError = fmt.Errorf("failed to create request to %s: %v", endpoint, err)
 			fmt.Printf("Failed to create request to %s: %v\n", url, err)
@@ -292,11 +253,166 @@ func Report(reportType ReportType, subType SubType, data interface{}) error {
 	return lastError
 }
 
-// ReportStartup 上报启动日志
-func ReportNodeInfo(msg string) error {
-	return Report(ReportTypeNode, NodeInfo, map[string]interface{}{
-		"msg": msg,
+// 上报节点信息记录
+func ReportNodeInfo(tag, description string) error {
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	fmt.Println("[" + tag + "]" + description)
+
+	// 设置节点日志数据
+	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+		Tag:         tag,
+		Level:       "info",
+		Description: description,
+		CreateTime:  time.Now().Unix(),
 	})
+	if err != nil {
+		return fmt.Errorf("failed to set node logs data: %v", err)
+	}
+
+	// 序列化数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report info data: %v", err)
+	}
+	return ReportBytes(reportData)
+}
+
+// 上报节点警告记录
+func ReportNodeWarn(tag, description string) error {
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	fmt.Println("[" + tag + "]" + description)
+
+	// 设置节点日志数据
+	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+		Tag:         tag,
+		Level:       "warning",
+		Description: description,
+		CreateTime:  time.Now().Unix(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set node warning logs data: %v", err)
+	}
+
+	// 序列化数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report warning data: %v", err)
+	}
+	return ReportBytes(reportData)
+}
+
+// 上报节点错误记录
+func ReportNodeError(tag, description string) error {
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	fmt.Println("[" + tag + "]" + description)
+
+	// 设置节点日志数据
+	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+		Tag:         tag,
+		Level:       "error",
+		Description: description,
+		CreateTime:  time.Now().Unix(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set node error logs data: %v", err)
+	}
+
+	// 序列化数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report info error data: %v", err)
+	}
+	return ReportBytes(reportData)
+}
+
+// 上报节点成功记录
+func ReportNodeSuccess(tag, description string) error {
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	fmt.Println("[" + tag + "]" + description)
+
+	// 设置节点日志数据
+	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+		Tag:         tag,
+		Level:       "success",
+		Description: description,
+		CreateTime:  time.Now().Unix(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set node error logs data: %v", err)
+	}
+
+	// 序列化数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report info error data: %v", err)
+	}
+	return ReportBytes(reportData)
+}
+
+func ReportSystemInfo() error {
+	fmt.Println("定时器触发，开始获取系统信息")
+	// 获取系统信息
+	_, err := system.GetSystemInfo()
+	if err != nil {
+		fmt.Printf("获取系统信息失败: %v\n", err)
+		return err
+	}
+	fmt.Println("获取系统信息成功，开始上报")
+
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	reportDataReady.SetSysInfoData(ReportSysInfo{
+		CreateTime: time.Now().Unix(),
+	})
+
+	// 序列化数据
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report sysinfo data: %v", err)
+	}
+	return ReportBytes(reportData)
+}
+
+func ReportRequest(data interface{}) error {
+	// 准备上报数据
+	reportDataReady := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+	reportDataReady.SetRequestLogsData(data)
+	reportData, err := json.Marshal(reportDataReady)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report request cmd data: %v", err)
+	}
+	return ReportBytes(reportData)
 }
 
 // ReportPing 上报 ping 结果
@@ -440,21 +556,16 @@ func ReportCliTcping(request, result interface{}) error {
 	})
 }
 
-// ReportSystemInfo 上报节点运行信息
-func ReportSystemInfo(data interface{}) error {
-	return Report(ReportTypeSystem, SystemInfo, data)
-}
-
 // ReportErrorLog 上报错误日志
 func ReportErrorLog(entry interface{}) error {
 	return Report(ReportTypeSystem, "error_log", map[string]interface{}{
-		"data": entry,
+		"error": entry,
 	})
 }
 
 // ReportCrashLog 上报崩溃日志
 func ReportCrashLog(entry interface{}) error {
 	return Report(ReportTypeSystem, "crash_log", map[string]interface{}{
-		"data": entry,
+		"crash": entry,
 	})
 }
