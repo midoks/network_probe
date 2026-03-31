@@ -1068,7 +1068,6 @@ func (s *Server) Run(addr string) error {
 
 	// 启动定时上报系统信息的任务
 	go func() {
-		fmt.Println("定时上报系统信息任务已启动")
 		// 每 10 秒上报一次系统信息
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
