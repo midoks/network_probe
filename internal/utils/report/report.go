@@ -254,7 +254,7 @@ func ReportBytes(data []byte) error {
 }
 
 // 上报节点信息记录
-func ReportNodeInfo(tag, description string) error {
+func NodeInfo(tag, description string) error {
 
 	// 准备上报数据
 	reportDataReady := ReportData{
@@ -284,7 +284,7 @@ func ReportNodeInfo(tag, description string) error {
 }
 
 // 上报节点警告记录
-func ReportNodeWarn(tag, description string) error {
+func NodeWarn(tag, description string) error {
 
 	// 准备上报数据
 	reportDataReady := ReportData{
@@ -314,7 +314,7 @@ func ReportNodeWarn(tag, description string) error {
 }
 
 // 上报节点错误记录
-func ReportNodeError(tag, description string) error {
+func NodeError(tag, description string) error {
 
 	// 准备上报数据
 	reportDataReady := ReportData{
@@ -344,7 +344,7 @@ func ReportNodeError(tag, description string) error {
 }
 
 // 上报节点成功记录
-func ReportNodeSuccess(tag, description string) error {
+func NodeSuccess(tag, description string) error {
 
 	// 准备上报数据
 	reportDataReady := ReportData{

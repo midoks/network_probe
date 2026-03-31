@@ -991,8 +991,8 @@ func (s *Server) Run(addr string) error {
 	}()
 
 	// 上报启动日志
-	if err := report.ReportNodeInfo("startup", "starting ..."); err != nil {
-		fmt.Printf("Failed to report startup: %v\n", err)
+	if err := report.NodeInfo("node", "starting ..."); err != nil {
+		fmt.Printf("Failed to report node startup: %v\n", err)
 	}
 
 	// 上报错误日志和崩溃日志
@@ -1015,7 +1015,7 @@ func (s *Server) Run(addr string) error {
 		for {
 			<-ticker.C
 			if err := report.ReportSystemInfo(); err != nil {
-				fmt.Printf("Failed to report sysinfo logs: %v\n", err)
+				fmt.Printf("Failed to report system info: %v\n", err)
 			}
 		}
 	}()
