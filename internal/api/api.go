@@ -232,7 +232,11 @@ func (s *Server) handlePing(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportPing(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "ping",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report ping: %v\n", err)
 	}
 
@@ -275,7 +279,11 @@ func (s *Server) handleTcping(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportTcping(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "tcping",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report tcping: %v\n", err)
 	}
 
@@ -318,7 +326,11 @@ func (s *Server) handleWebsite(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportWebsite(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "website",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report website: %v\n", err)
 	}
 
@@ -359,7 +371,11 @@ func (s *Server) handleTraceroute(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportTraceroute(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "traceroute",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report traceroute: %v\n", err)
 	}
 
@@ -410,7 +426,11 @@ func (s *Server) handleDns(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportDns(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "dns",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report dns: %v\n", err)
 	}
 
@@ -456,7 +476,11 @@ func (s *Server) handleMtr(c *gin.Context) {
 	}
 
 	// 上报结果
-	if err := report.ReportMtr(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "mtr",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report mtr: %v\n", err)
 	}
 
@@ -502,7 +526,10 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 	}
 
 	// 上报 WebSocket 连接
-	if err := report.ReportWebSocketConnect(); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":    "websocket_connect",
+		"status": "connected",
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket connect: %v\n", err)
 	}
 	// 处理消息
@@ -511,7 +538,10 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 		if err := conn.ReadJSON(&msg); err != nil {
 			// 客户端断开连接
 			// 上报 WebSocket 断开连接
-			if err := report.ReportWebSocketDisconnect(); err != nil {
+			if err := report.ReportRequest(map[string]interface{}{
+				"tag":    "websocket_disconnect",
+				"status": "disconnected",
+			}); err != nil {
 				fmt.Printf("Failed to report WebSocket disconnect: %v\n", err)
 			}
 			break
@@ -596,7 +626,11 @@ func (s *Server) handleWebSocketPing(payload json.RawMessage) WebSocketResponse 
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketPing(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_ping",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket ping: %v\n", err)
 	}
 
@@ -649,7 +683,11 @@ func (s *Server) handleWebSocketTcping(payload json.RawMessage) WebSocketRespons
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketTcping(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_tcping",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket tcping: %v\n", err)
 	}
 
@@ -702,7 +740,11 @@ func (s *Server) handleWebSocketWebsite(payload json.RawMessage) WebSocketRespon
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketWebsite(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_website",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket website: %v\n", err)
 	}
 
@@ -753,7 +795,11 @@ func (s *Server) handleWebSocketTraceroute(payload json.RawMessage) WebSocketRes
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketTraceroute(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_traceroute",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket traceroute: %v\n", err)
 	}
 
@@ -817,7 +863,11 @@ func (s *Server) handleWebSocketDns(payload json.RawMessage) WebSocketResponse {
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketDns(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_dns",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket dns: %v\n", err)
 	}
 
@@ -873,7 +923,11 @@ func (s *Server) handleWebSocketMtr(payload json.RawMessage) WebSocketResponse {
 	}
 
 	// 上报结果
-	if err := report.ReportWebSocketMtr(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_mtr",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket mtr: %v\n", err)
 	}
 
@@ -916,7 +970,10 @@ func (s *Server) handleWebSocketMtrWithUpdates(conn *websocket.Conn, msg WebSock
 	}
 
 	// 上报 MTR 请求开始
-	if err := report.ReportWebSocketMtrStart(req); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_mtr_start",
+		"request": req,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket mtr start: %v\n", err)
 	}
 	// 创建带有回调函数的 MTR 服务
@@ -962,7 +1019,11 @@ func (s *Server) handleWebSocketMtrWithUpdates(conn *websocket.Conn, msg WebSock
 	}
 
 	// 上报 MTR 结果
-	if err := report.ReportWebSocketMtrComplete(req, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag":     "websocket_mtr_complete",
+		"request": req,
+		"result":  result,
+	}); err != nil {
 		fmt.Printf("Failed to report WebSocket mtr complete: %v\n", err)
 	}
 

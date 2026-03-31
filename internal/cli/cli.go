@@ -428,12 +428,16 @@ func handleTcping(cli *Cli) error {
 	}
 
 	// 上报结果
-	if err := report.ReportCliTcping(map[string]interface{}{
-		"host":    cli.Host,
-		"port":    cli.Port,
-		"count":   cli.Count,
-		"timeout": cli.Timeout,
-	}, result); err != nil {
+	if err := report.ReportRequest(map[string]interface{}{
+		"tag": "cli_tcping",
+		"request": map[string]interface{}{
+			"host":    cli.Host,
+			"port":    cli.Port,
+			"count":   cli.Count,
+			"timeout": cli.Timeout,
+		},
+		"result": result,
+	}); err != nil {
 		fmt.Printf("上报 TCPing 结果失败: %v\n", err)
 	}
 
