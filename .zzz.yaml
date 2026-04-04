@@ -8,7 +8,8 @@ dirfilter:
 - scripts
 - target
 - logs
-- templates
+- data
+- dist
 ext:
 - go
 - tmpl

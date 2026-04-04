@@ -1066,19 +1066,24 @@ func (s *Server) Run(addr string) error {
 		}
 	}()
 
-	// 启动定时上报系统信息的任务
+	// 启动节点状态上报
 	go func() {
-		// 每 10 秒上报一次系统信息
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			<-ticker.C
-			if err := report.ReportSystemInfo(); err != nil {
-				fmt.Printf("Failed to report system info: %v\n", err)
-			}
-		}
+		report.NewNodeStatusExecutor().Run()
 	}()
+
+	// // 启动定时上报系统信息的任务
+	// go func() {
+	// 	// 每 10 秒上报一次系统信息
+	// 	ticker := time.NewTicker(10 * time.Second)
+	// 	defer ticker.Stop()
+
+	// 	for {
+	// 		<-ticker.C
+	// 		if err := report.ReportSystemInfo(); err != nil {
+	// 			fmt.Printf("Failed to report system info: %v\n", err)
+	// 		}
+	// 	}
+	// }()
 
 	// 保持程序运行
 	select {}
