@@ -3,9 +3,11 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"network-probe/internal/config"
@@ -15,6 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
+	gnet "github.com/shirou/gopsutil/v4/net"
 )
 
 type NodeStatusExecutor struct {
@@ -25,6 +28,7 @@ type NodeStatusExecutor struct {
 	cpuPhysicalCount int
 
 	// 流量统计
+	lastIOCounterStat   gnet.IOCountersStat
 	lastUDPInDatagrams  int64
 	lastUDPOutDatagrams int64
 
@@ -60,6 +64,9 @@ type NodeStatus struct {
 	DiskMaxUsagePartition string  `json:"disk_max_usage_partition"`
 	DiskTotal             uint64  `json:"disk_total"`
 	DiskWritingSpeedMB    int     `json:"disk_writing_speed_mb"` // 硬盘写入速度
+
+	TrafficInBytes  uint64 `json:"traffic_in_bytes"`
+	TrafficOutBytes uint64 `json:"traffic_out_bytes"`
 
 	IsActive bool   `json:"is_active"`
 	Error    string `json:"error"`
@@ -121,6 +128,12 @@ func (this *NodeStatusExecutor) update() {
 
 	// disk
 	this.updateDisk(status)
+
+	// traffic
+	this.updateAllTraffic(status)
+
+	status.UpdatedAt = time.Now().Unix()
+	status.Timestamp = status.UpdatedAt
 
 	// 序列化数据
 	nodeData, err := json.Marshal(status)
@@ -197,6 +210,7 @@ func (this *NodeStatusExecutor) updateMem(status *NodeStatus) {
 		stat.Used = stat.Total - stat.Free - stat.Buffers - stat.Cached
 		status.MemoryUsage = float64(stat.Used) / float64(stat.Total)
 	}
+	status.MemoryTotal = stat.Total
 
 	NodeItem("mem", map[string]interface{}{
 		"usage": status.MemoryUsage,
@@ -249,6 +263,7 @@ func (this *NodeStatusExecutor) updateDisk(status *NodeStatus) {
 	}
 
 	var rootTotal = uint64(0)
+	var total = uint64(0)
 	var totalUsed = uint64(0)
 	var maxUsage = float64(0)
 	// 检查当前系统是否为支持的系统类型
@@ -264,17 +279,37 @@ func (this *NodeStatusExecutor) updateDisk(status *NodeStatus) {
 		for _, p := range partitions {
 			if p.Mountpoint == "/" {
 				usage, _ := disk.Usage(p.Mountpoint)
-
-				fmt.Println(usage, p.Mountpoint)
 				if usage != nil {
 					rootTotal = usage.Total
+					total = rootTotal // 初始化 total 为根分区大小
 					totalUsed = usage.Used
 				}
 				break
 			}
 		}
 	}
-	var total = rootTotal
+
+	for _, partition := range partitions {
+		if runtime.GOOS != "windows" && !strings.Contains(partition.Device, "/") && !strings.Contains(partition.Device, "\\") {
+			continue
+		}
+
+		usage, err := disk.Usage(partition.Mountpoint)
+		if err != nil {
+			continue
+		}
+
+		if partition.Mountpoint != "/" && (usage.Total != rootTotal || total == 0) {
+			total += usage.Total
+			totalUsed += usage.Used
+			if usage.UsedPercent >= maxUsage {
+				maxUsage = usage.UsedPercent
+				status.DiskMaxUsagePartition = partition.Mountpoint
+			}
+		}
+	}
+
+	// 使用之前声明的 total 变量
 	status.DiskTotal = total
 	if total > 0 {
 		status.DiskUsage = float64(totalUsed) / float64(total)
@@ -282,8 +317,88 @@ func (this *NodeStatusExecutor) updateDisk(status *NodeStatus) {
 	status.DiskMaxUsage = maxUsage / 100
 
 	NodeItem("disk", map[string]interface{}{
-		"total":    status.DiskTotal,
-		"usage":    status.DiskUsage,
-		"maxUsage": status.DiskMaxUsage,
+		"total":     status.DiskTotal,
+		"usage":     status.DiskUsage,
+		"max_usage": status.DiskMaxUsage,
 	})
+}
+
+func (this *NodeStatusExecutor) updateAllTraffic(status *NodeStatus) {
+	trafficCounters, err := gnet.IOCounters(true)
+	if err != nil {
+		NodeWarn("NODE_STATUS_EXECUTOR", err.Error())
+		return
+	}
+
+	fmt.Println("trafficCounters:", trafficCounters)
+
+	var allCounter = gnet.IOCountersStat{}
+	for _, counter := range trafficCounters {
+		// 跳过lo
+		if counter.Name == "lo" {
+			continue
+		}
+		allCounter.BytesRecv += counter.BytesRecv
+		allCounter.BytesSent += counter.BytesSent
+	}
+	if allCounter.BytesSent == 0 && allCounter.BytesRecv == 0 {
+		return
+	}
+	if this.lastIOCounterStat.BytesSent > 0 {
+		// 记录监控数据
+		if allCounter.BytesSent >= this.lastIOCounterStat.BytesSent && allCounter.BytesRecv >= this.lastIOCounterStat.BytesRecv {
+			var costSeconds = int(math.Ceil(time.Since(this.lastUpdatedTime).Seconds()))
+			if costSeconds > 0 {
+				var bytesSent = allCounter.BytesSent - this.lastIOCounterStat.BytesSent
+				var bytesRecv = allCounter.BytesRecv - this.lastIOCounterStat.BytesRecv
+
+				// UDP
+				var udpInDatagrams int64 = 0
+				var udpOutDatagrams int64 = 0
+				protoStats, protoErr := gnet.ProtoCounters([]string{"udp"})
+				if protoErr == nil {
+					for _, protoStat := range protoStats {
+						if protoStat.Protocol == "udp" {
+							udpInDatagrams = protoStat.Stats["InDatagrams"]
+							udpOutDatagrams = protoStat.Stats["OutDatagrams"]
+							if udpInDatagrams < 0 {
+								udpInDatagrams = 0
+							}
+							if udpOutDatagrams < 0 {
+								udpOutDatagrams = 0
+							}
+						}
+					}
+				}
+
+				var avgUDPInDatagrams int64 = 0
+				var avgUDPOutDatagrams int64 = 0
+				if this.lastUDPInDatagrams >= 0 && this.lastUDPOutDatagrams >= 0 {
+					avgUDPInDatagrams = (udpInDatagrams - this.lastUDPInDatagrams) / int64(costSeconds)
+					avgUDPOutDatagrams = (udpOutDatagrams - this.lastUDPOutDatagrams) / int64(costSeconds)
+					if avgUDPInDatagrams < 0 {
+						avgUDPInDatagrams = 0
+					}
+					if avgUDPOutDatagrams < 0 {
+						avgUDPOutDatagrams = 0
+					}
+				}
+
+				this.lastUDPInDatagrams = udpInDatagrams
+				this.lastUDPOutDatagrams = udpOutDatagrams
+
+				NodeItem("traffic", map[string]interface{}{
+					"in_bytes":      bytesRecv,
+					"out_bytes":     bytesSent,
+					"avg_in_bytes":  bytesRecv / uint64(costSeconds),
+					"avg_out_bytes": bytesSent / uint64(costSeconds),
+
+					"avg_udp_in_datagrams":  avgUDPInDatagrams,
+					"avg_udp_out_datagrams": avgUDPOutDatagrams,
+				})
+			}
+		}
+	}
+
+	this.lastIOCounterStat = allCounter
 }
