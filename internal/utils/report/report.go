@@ -8,112 +8,8 @@ import (
 	"time"
 
 	"network-probe/internal/config"
-	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
-
-// PingRequest 表示 ping 请求
-type PingRequest struct {
-	Host    string `json:"host"`
-	Count   int    `json:"count"`
-	Timeout int    `json:"timeout"`
-}
-
-// PingReportData 表示 ping 上报数据
-type PingReportData struct {
-	Request PingRequest `json:"request"`
-	Result  interface{} `json:"result"`
-}
-
-// TcpingRequest 表示 tcping 请求
-type TcpingRequest struct {
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	Count   int    `json:"count"`
-	Timeout int    `json:"timeout"`
-}
-
-// TcpingReportData 表示 tcping 上报数据
-type TcpingReportData struct {
-	Request TcpingRequest `json:"request"`
-	Result  interface{}   `json:"result"`
-}
-
-// WebsiteRequest 表示 website 请求
-type WebsiteRequest struct {
-	URL             string `json:"url"`
-	Method          string `json:"method"`
-	Timeout         int    `json:"timeout"`
-	FollowRedirects bool   `json:"follow_redirects"`
-}
-
-// WebsiteReportData 表示 website 上报数据
-type WebsiteReportData struct {
-	Request WebsiteRequest `json:"request"`
-	Result  interface{}    `json:"result"`
-}
-
-// TracerouteRequest 表示 traceroute 请求
-type TracerouteRequest struct {
-	Host     string `json:"host"`
-	MaxHops  int    `json:"max_hops"`
-	Protocol string `json:"protocol"`
-}
-
-// TracerouteReportData 表示 traceroute 上报数据
-type TracerouteReportData struct {
-	Request TracerouteRequest `json:"request"`
-	Result  interface{}       `json:"result"`
-}
-
-// DnsRequest 表示 dns 请求
-type DnsRequest struct {
-	Domain     string `json:"domain"`
-	QueryType  string `json:"query_type"`
-	Nameserver string `json:"nameserver"`
-}
-
-// DnsReportData 表示 dns 上报数据
-type DnsReportData struct {
-	Request DnsRequest  `json:"request"`
-	Result  interface{} `json:"result"`
-}
-
-// MtrRequest 表示 mtr 请求
-type MtrRequest struct {
-	Host     string `json:"host"`
-	MaxHops  int    `json:"max_hops"`
-	Count    int    `json:"count"`
-	Interval int    `json:"interval"`
-}
-
-// MtrReportData 表示 mtr 上报数据
-type MtrReportData struct {
-	Request MtrRequest  `json:"request"`
-	Result  interface{} `json:"result"`
-}
-
-// StartupRequest 表示启动请求
-type StartupRequest struct {
-	Address string `json:"address"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
-}
-
-// StartupReportData 表示启动上报数据
-type StartupReportData struct {
-	Msg string `json:"msg"`
-}
-
-// WebSocketConnectReportData 表示 WebSocket 连接上报数据
-type WebSocketConnectReportData struct {
-	Status string `json:"status"`
-}
-
-// SystemInfoReportData 表示系统信息上报数据
-type SystemInfoReportData struct {
-	Result interface{} `json:"result"`
-}
 
 // 全局 channel 用于控制定时上传
 type uploadTask struct {
@@ -345,12 +241,10 @@ func NodeError(tag, description string) error {
 
 // 上报节点成功记录
 func NodeSuccess(tag, description string) error {
-	// 准备上报数据
 	reportDataReady := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-
 	fmt.Println("[" + tag + "]" + description)
 
 	// 设置节点日志数据
@@ -395,33 +289,6 @@ func NodeItem(item string, value interface{}) error {
 		return fmt.Errorf("failed to marshal report node item: %v", err)
 	}
 	return ReportBytes(report_data)
-}
-
-func ReportSystemInfo() error {
-	fmt.Println("定时器触发，开始获取系统信息")
-	// 获取系统信息
-	_, err := system.GetSystemInfo()
-	if err != nil {
-		fmt.Printf("获取系统信息失败: %v\n", err)
-		return err
-	}
-	fmt.Println("获取系统信息成功，开始上报")
-
-	// 准备上报数据
-	reportDataReady := ReportData{
-		Timestamp: time.Now().Unix(),
-		Version:   version.Version,
-	}
-
-	reportDataReady.SetSysInfoData(ReportSysInfo{
-		CreateTime: time.Now().Unix(),
-	})
-
-	reportData, err := json.Marshal(reportDataReady)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report sysinfo data: %v", err)
-	}
-	return ReportBytes(reportData)
 }
 
 func ReportRequest(data interface{}) error {

@@ -74,22 +74,6 @@ type ReportRequestLogs struct {
 	CreateTime  int64  `json:"create_time,omitempty"`
 }
 
-// ReportSysInfo 表示系统状态信息
-type ReportSysInfo struct {
-	DownloadBandwidth string `json:"download_bandwidth"`
-	UploadBandwidth   string `json:"upload_bandwidth"`
-	Connections       string `json:"connections"`
-	AccessRate        string `json:"access_rate"`
-	AttackRate        string `json:"attack_rate"`
-	MaxDiskWriteSpeed string `json:"max_disk_write_speed"`
-	MemoryCacheUsage  string `json:"memory_cache_usage"`
-	CPUUsage          string `json:"cpu_usage"`
-	MemoryUsage       string `json:"memory_usage"`
-	TotalMemory       string `json:"total_memory"`
-	Load              string `json:"load"`
-	CreateTime        int64  `json:"create_time,omitempty"`
-}
-
 type ReportNodeItem struct {
 	Item  string `json:"item,omitempty"`
 	Value string `json:"value,omitempty"`
@@ -108,16 +92,6 @@ func (a *ReportData) SetNodeLogsData(p ReportNodeLogs) error {
 func (a *ReportData) SetRequestLogsData(data interface{}) error {
 	a.Type = ReportTypeRequest
 	b, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	a.Data = string(b)
-	return nil
-}
-
-func (a *ReportData) SetSysInfoData(p ReportSysInfo) error {
-	a.Type = ReportTypeSystem
-	b, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}

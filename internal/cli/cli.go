@@ -14,9 +14,7 @@ import (
 	"network-probe/internal/api"
 	"network-probe/internal/config"
 	"network-probe/internal/modules"
-	"network-probe/internal/utils/logger"
 	"network-probe/internal/utils/report"
-	"network-probe/internal/utils/system"
 	"network-probe/internal/version"
 )
 
@@ -319,44 +317,14 @@ func Run() error {
 
 // handleSysinfo 处理 sysinfo 命令
 func handleSysinfo(cli *Cli) error {
-	// 获取系统信息
-	systemInfo, err := system.GetSystemInfo()
-	if err != nil {
-		fmt.Printf("Failed to get system info: %v\n", err)
-		return err
-	}
-
-	// 打印系统信息
+	// 系统信息获取功能已移除
 	fmt.Println("System Information:")
 	fmt.Println("===================")
-	fmt.Printf("Online Status:      %s\n", systemInfo.OnlineStatus)
-	fmt.Printf("Download Bandwidth: %s\n", systemInfo.DownloadBandwidth)
-	fmt.Printf("Upload Bandwidth:   %s\n", systemInfo.UploadBandwidth)
-	fmt.Printf("Connections:        %s\n", systemInfo.Connections)
-	fmt.Printf("Access Rate:        %s\n", systemInfo.AccessRate)
-	fmt.Printf("Attack Rate:        %s\n", systemInfo.AttackRate)
-	fmt.Printf("Cache Disk Usage:   %s\n", systemInfo.CacheDiskUsage)
-	fmt.Printf("Max Disk Write:     %s\n", systemInfo.MaxDiskWriteSpeed)
-	fmt.Printf("Memory Cache Usage: %s\n", systemInfo.MemoryCacheUsage)
-	fmt.Printf("CPU Usage:          %s\n", systemInfo.CPUUsage)
-	fmt.Printf("Memory Usage:       %s\n", systemInfo.MemoryUsage)
-	fmt.Printf("Total Memory:       %s\n", systemInfo.TotalMemory)
-	fmt.Printf("Load:               %s\n", systemInfo.Load)
-	fmt.Printf("Monthly Traffic:    %s\n", systemInfo.MonthlyTraffic)
-	fmt.Printf("Yesterday Traffic:  %s\n", systemInfo.YesterdayTraffic)
-	fmt.Printf("Today Traffic:      %s\n", systemInfo.TodayTraffic)
+	fmt.Println("System info functionality has been removed.")
 
 	// 上报系统信息
 	if err := report.ReportSystemInfo(); err != nil {
 		fmt.Printf("上报系统信息失败: %v\n", err)
-	}
-
-	// 上报错误日志和崩溃日志
-	if err := logger.ReportErrorLogs(); err != nil {
-		fmt.Printf("上报错误日志失败: %v\n", err)
-	}
-	if err := logger.ReportCrashLogs(); err != nil {
-		fmt.Printf("上报崩溃日志失败: %v\n", err)
 	}
 
 	return nil

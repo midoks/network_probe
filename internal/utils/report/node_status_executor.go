@@ -1,7 +1,7 @@
 package report
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -136,21 +136,7 @@ func (this *NodeStatusExecutor) update() {
 	status.UpdatedAt = time.Now().Unix()
 	status.Timestamp = status.UpdatedAt
 
-	// 序列化数据
-	nodeData, err := json.Marshal(status)
-	if err != nil {
-		fmt.Printf("Failed to marshal node status: %v\n", err)
-		return
-	}
-
-	fmt.Println("nodeData:", string(nodeData))
-
-	// 上报数据
-	if err := ReportBytes(nodeData); err != nil {
-		fmt.Printf("failed to report node status: %v\n", err)
-		return
-	}
-
+	NodeItem("sysinfo", status)
 	// 修改更新时间
 	this.lastUpdatedTime = time.Now()
 
@@ -267,6 +253,7 @@ func (this *NodeStatusExecutor) updateDisk(status *NodeStatus) {
 	var total = uint64(0)
 	var totalUsed = uint64(0)
 	var maxUsage = float64(0)
+
 	// 检查当前系统是否为支持的系统类型
 	supportedOS := false
 	for _, os := range []string{"darwin", "linux", "freebsd"} {
