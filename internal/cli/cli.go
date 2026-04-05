@@ -321,12 +321,6 @@ func handleSysinfo(cli *Cli) error {
 	fmt.Println("System Information:")
 	fmt.Println("===================")
 	fmt.Println("System info functionality has been removed.")
-
-	// 上报系统信息
-	if err := report.ReportSystemInfo(); err != nil {
-		fmt.Printf("上报系统信息失败: %v\n", err)
-	}
-
 	return nil
 }
 

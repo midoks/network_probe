@@ -1,11 +1,14 @@
 package logger
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"network-probe/internal/utils/report"
@@ -37,6 +40,35 @@ var (
 	errorLogMutex sync.Mutex
 	crashLogMutex sync.Mutex
 )
+
+var stdErrFileHandler *os.File
+
+func RewriteStderrFile() error {
+	file, err := os.OpenFile(CrashLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	stdErrFileHandler = file
+
+	// 分析panic
+	data, err := os.ReadFile(CrashLogFile)
+	if err == nil {
+		var index = bytes.Index(data, []byte("panic:"))
+		if index >= 0 {
+			report.NodeError("NODE", "系统错误，请上报给开发者: "+string(data[index:]))
+		}
+	}
+
+	if err = syscall.Dup2(int(file.Fd()), int(os.Stderr.Fd())); err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	runtime.SetFinalizer(stdErrFileHandler, func(fd *os.File) {
+		fd.Close()
+	})
+	return nil
+}
 
 // LogError 记录错误信息
 func LogError(errType, message, level string) {

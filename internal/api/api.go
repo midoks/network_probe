@@ -1044,10 +1044,27 @@ func (s *Server) GetConfig() *config.Config {
 
 // Run 启动服务器
 func (s *Server) Run(addr string) error {
+	logger.RewriteStderrFile()
+	//test
+	panic("panic error")
+
+	// 上报错误日志和崩溃日志
+	go func() {
+		if err := logger.ReportCrashLogs(); err != nil {
+			fmt.Printf("Failed to report crash logs: %v\n", err)
+		}
+
+		if err := logger.ReportErrorLogs(); err != nil {
+			fmt.Printf("Failed to report error logs: %v\n", err)
+		}
+
+		time.Sleep(2 * time.Second)
+	}()
+
 	// 启动 HTTP 服务器
 	go func() {
 		if err := s.router.Run(addr); err != nil {
-			fmt.Printf("Server error: %v\n", err)
+			panic("bind panic error:" + fmt.Sprintf("panic error:%s", addr))
 		}
 	}()
 
@@ -1056,34 +1073,10 @@ func (s *Server) Run(addr string) error {
 		fmt.Printf("Failed to report node startup: %v\n", err)
 	}
 
-	// 上报错误日志和崩溃日志
-	go func() {
-		if err := logger.ReportErrorLogs(); err != nil {
-			fmt.Printf("Failed to report error logs: %v\n", err)
-		}
-		if err := logger.ReportCrashLogs(); err != nil {
-			fmt.Printf("Failed to report crash logs: %v\n", err)
-		}
-	}()
-
 	// 启动节点状态上报
 	go func() {
 		report.NewNodeStatusExecutor().Run()
 	}()
-
-	// // 启动定时上报系统信息的任务
-	// go func() {
-	// 	// 每 10 秒上报一次系统信息
-	// 	ticker := time.NewTicker(10 * time.Second)
-	// 	defer ticker.Stop()
-
-	// 	for {
-	// 		<-ticker.C
-	// 		if err := report.ReportSystemInfo(); err != nil {
-	// 			fmt.Printf("Failed to report system info: %v\n", err)
-	// 		}
-	// 	}
-	// }()
 
 	// 保持程序运行
 	select {}
