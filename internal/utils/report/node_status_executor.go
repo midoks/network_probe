@@ -65,6 +65,7 @@ type NodeStatus struct {
 	DiskTotal             uint64  `json:"disk_total"`
 	DiskWritingSpeedMB    int     `json:"disk_writing_speed_mb"` // 硬盘写入速度
 
+	// traffic
 	TrafficInBytes  uint64 `json:"traffic_in_bytes"`
 	TrafficOutBytes uint64 `json:"traffic_out_bytes"`
 
@@ -329,8 +330,6 @@ func (this *NodeStatusExecutor) updateAllTraffic(status *NodeStatus) {
 		NodeWarn("NODE_STATUS_EXECUTOR", err.Error())
 		return
 	}
-
-	fmt.Println("trafficCounters:", trafficCounters)
 
 	var allCounter = gnet.IOCountersStat{}
 	for _, counter := range trafficCounters {
