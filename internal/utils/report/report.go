@@ -372,6 +372,31 @@ func NodeSuccess(tag, description string) error {
 	return ReportBytes(reportData)
 }
 
+// 节点 cpu/mem/disk 信息
+func NodeItem(item string, value interface{}) error {
+	report := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
+	item_value, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report node item value: %v", err)
+	}
+
+	fmt.Println("item", item, string(item_value))
+	report.SetNodeItemData(ReportNodeItem{
+		Item:  item,
+		Value: string(item_value),
+	})
+
+	report_data, err := json.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report node item: %v", err)
+	}
+	return ReportBytes(report_data)
+}
+
 func ReportSystemInfo() error {
 	fmt.Println("定时器触发，开始获取系统信息")
 	// 获取系统信息
@@ -392,7 +417,6 @@ func ReportSystemInfo() error {
 		CreateTime: time.Now().Unix(),
 	})
 
-	// 序列化数据
 	reportData, err := json.Marshal(reportDataReady)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report sysinfo data: %v", err)
@@ -402,16 +426,16 @@ func ReportSystemInfo() error {
 
 func ReportRequest(data interface{}) error {
 	// 准备上报数据
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-	reportDataReady.SetRequestLogsData(data)
-	reportData, err := json.Marshal(reportDataReady)
+	ready.SetRequestLogsData(data)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report request cmd data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(report_data)
 }
 
 // ReportErrorLog 上报错误日志

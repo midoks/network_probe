@@ -13,9 +13,10 @@ type SubType string
 // 上报类型常量
 const (
 	// 系统信息上报类型
-	ReportTypeSystem  ReportType = "sys"
-	ReportTypeNode    ReportType = "node"
-	ReportTypeRequest ReportType = "request"
+	ReportTypeSystem   ReportType = "sys"
+	ReportTypeNode     ReportType = "node"
+	ReportTypeNodeItem ReportType = "node_item"
+	ReportTypeRequest  ReportType = "request"
 )
 
 const (
@@ -89,6 +90,11 @@ type ReportSysInfo struct {
 	CreateTime        int64  `json:"create_time,omitempty"`
 }
 
+type ReportNodeItem struct {
+	Item  string `json:"item,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
 func (a *ReportData) SetNodeLogsData(p ReportNodeLogs) error {
 	a.Type = ReportTypeNode
 	b, err := json.Marshal(p)
@@ -111,6 +117,16 @@ func (a *ReportData) SetRequestLogsData(data interface{}) error {
 
 func (a *ReportData) SetSysInfoData(p ReportSysInfo) error {
 	a.Type = ReportTypeSystem
+	b, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	a.Data = string(b)
+	return nil
+}
+
+func (a *ReportData) SetNodeItemData(p ReportNodeItem) error {
+	a.Type = ReportTypeNodeItem
 	b, err := json.Marshal(p)
 	if err != nil {
 		return err
