@@ -60,7 +60,6 @@ func RewriteStderrFile() error {
 	}
 
 	if err = syscall.Dup2(int(file.Fd()), int(os.Stderr.Fd())); err != nil {
-		fmt.Println(err)
 		return err
 	}
 

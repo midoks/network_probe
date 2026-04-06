@@ -1046,7 +1046,6 @@ func (s *Server) GetConfig() *config.Config {
 func (s *Server) Run(addr string) error {
 	logger.RewriteStderrFile()
 	//test
-	// panic("panic error")
 
 	// api server
 	go func() {

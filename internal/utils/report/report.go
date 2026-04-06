@@ -190,7 +190,7 @@ func NodeError(tag, description string) error {
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-	fmt.Println("[" + tag + "]" + description)
+	// fmt.Println("[" + tag + "]" + description)
 
 	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
