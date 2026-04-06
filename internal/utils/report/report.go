@@ -23,8 +23,6 @@ var (
 func init() {
 	// 初始化 channel
 	uploadChan = make(chan uploadTask, 64)
-	stopChan = make(chan struct{})
-	isRunning = true
 
 	// 启动定时上传 goroutine
 	go uploadWorker()
