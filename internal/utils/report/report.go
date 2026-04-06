@@ -18,8 +18,6 @@ type uploadTask struct {
 
 var (
 	uploadChan chan uploadTask
-	stopChan   chan struct{}
-	isRunning  bool
 )
 
 func init() {
@@ -50,6 +48,7 @@ Loop:
 		select {
 		case task := <-uploadChan:
 			// 处理实时上传任务
+			fmt.Println("data;", string(task.data))
 			if err := ReportBytes(task.data); err != nil {
 				fmt.Printf("[LOG]upload task failed: %v\n", err)
 			}
@@ -59,14 +58,6 @@ Loop:
 		}
 	}
 	return nil
-}
-
-// StopUploadWorker 停止上传工作器
-func StopUploadWorker() {
-	if isRunning {
-		close(stopChan)
-		isRunning = false
-	}
 }
 
 // Report 上报数据
@@ -83,11 +74,11 @@ func Report(data interface{}) error {
 	}
 	ready.Data = string(dataBytes)
 
-	reportData, err := json.Marshal(ready)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(report_data)
 }
 
 // ReportBytes 上报数据（字节数组）
@@ -257,7 +248,7 @@ func NodeSuccess(tag, description string) error {
 	return nil
 }
 
-// 节点 cpu/mem/disk 信息
+// 节点 cpu/mem/disk/sysinfo 信息
 func NodeItem(item string, value interface{}) error {
 	ready := ReportData{
 		Timestamp: time.Now().Unix(),
