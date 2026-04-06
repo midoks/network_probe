@@ -24,7 +24,7 @@ var (
 
 func init() {
 	// 初始化 channel
-	uploadChan = make(chan uploadTask, 100)
+	uploadChan = make(chan uploadTask, 64)
 	stopChan = make(chan struct{})
 	isRunning = true
 
@@ -37,22 +37,28 @@ func uploadWorker() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
+	for range ticker.C {
+		fmt.Println("[LOG]定时上传任务触发")
+		uploadLogs()
+	}
+
+}
+
+func uploadLogs() error {
+Loop:
 	for {
 		select {
-		case <-ticker.C:
-			// 定时触发上传日志
-			fmt.Println("[LOG]定时上传任务触发")
 		case task := <-uploadChan:
 			// 处理实时上传任务
 			if err := ReportBytes(task.data); err != nil {
 				fmt.Printf("[LOG]upload task failed: %v\n", err)
 			}
-		case <-stopChan:
-			// 停止上传
-			fmt.Println("[LOG]upload worker stopped")
-			return
+			return nil
+		default:
+			break Loop
 		}
 	}
+	return nil
 }
 
 // StopUploadWorker 停止上传工作器
