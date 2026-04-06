@@ -1048,14 +1048,15 @@ func (s *Server) Run(addr string) error {
 	//test
 	// panic("panic error")
 
-	// 启动 HTTP 服务器
+	// api server
 	go func() {
 		if err := s.router.Run(addr); err != nil {
-			panic("bind panic error:" + fmt.Sprintf("panic error:%s", addr))
+			fmt.Printf("failed bind port error: %v\n", err)
+			// panic("bind panic error:" + fmt.Sprintf("panic error:%s", addr))
 		}
 	}()
 
-	// 上报启动日志
+	// report
 	if err := report.NodeInfo("node", "starting ..."); err != nil {
 		fmt.Printf("Failed to report node startup: %v\n", err)
 	}
@@ -1065,6 +1066,5 @@ func (s *Server) Run(addr string) error {
 		report.NewNodeStatusExecutor().Run()
 	}()
 
-	// 保持程序运行
 	select {}
 }

@@ -65,46 +65,24 @@ func StopUploadWorker() {
 	}
 }
 
-// QueueUpload 将上传任务加入队列
-func QueueUpload(reportType ReportType, subType SubType, data interface{}) {
-	select {
-	case uploadChan <- uploadTask{
-		reportType: reportType,
-		subType:    subType,
-		data:       data,
-	}:
-		// 任务已加入队列
-	default:
-		// 队列已满，直接上报
-		fmt.Println("[LOG]upload queue is full, reporting directly")
-		if err := Report(reportType, subType, data); err != nil {
-			fmt.Printf("[LOG]direct upload failed: %v\n", err)
-		}
-	}
-}
-
-// Report 上报数据（同步）
+// Report 上报数据
 func Report(reportType ReportType, subType SubType, data interface{}) error {
-	// 序列化数据
-	dataBytes, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal data: %v", err)
-	}
-
-	// 准备上报数据
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Type:      reportType,
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
-		Data:      string(dataBytes),
 	}
 
-	// 序列化上报数据
-	reportData, err := json.Marshal(reportDataReady)
+	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report data: %v", err)
 	}
+	ready.Data = string(dataBytes)
 
+	reportData, err := json.Marshal(ready)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report data: %v", err)
+	}
 	return ReportBytes(reportData)
 }
 
@@ -151,9 +129,7 @@ func ReportBytes(data []byte) error {
 
 // 上报节点信息记录
 func NodeInfo(tag, description string) error {
-
-	// 准备上报数据
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
@@ -161,7 +137,7 @@ func NodeInfo(tag, description string) error {
 	fmt.Println("[" + tag + "]" + description)
 
 	// 设置节点日志数据
-	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "info",
 		Description: description,
@@ -171,27 +147,20 @@ func NodeInfo(tag, description string) error {
 		return fmt.Errorf("failed to set node logs data: %v", err)
 	}
 
-	// 序列化数据
-	reportData, err := json.Marshal(reportDataReady)
+	data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(data)
 }
 
 // 上报节点警告记录
 func NodeWarn(tag, description string) error {
-
-	// 准备上报数据
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-
-	fmt.Println("[" + tag + "]" + description)
-
-	// 设置节点日志数据
-	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "warning",
 		Description: description,
@@ -202,26 +171,22 @@ func NodeWarn(tag, description string) error {
 	}
 
 	// 序列化数据
-	reportData, err := json.Marshal(reportDataReady)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report warning data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(report_data)
 }
 
 // 上报节点错误记录
 func NodeError(tag, description string) error {
-
-	// 准备上报数据
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-
 	fmt.Println("[" + tag + "]" + description)
 
-	// 设置节点日志数据
-	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "error",
 		Description: description,
@@ -231,24 +196,23 @@ func NodeError(tag, description string) error {
 		return fmt.Errorf("failed to set node error logs data: %v", err)
 	}
 
-	// 序列化数据
-	reportData, err := json.Marshal(reportDataReady)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info error data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(report_data)
 }
 
 // 上报节点成功记录
 func NodeSuccess(tag, description string) error {
-	reportDataReady := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
 	fmt.Println("[" + tag + "]" + description)
 
 	// 设置节点日志数据
-	err := reportDataReady.SetNodeLogsData(ReportNodeLogs{
+	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "success",
 		Description: description,
@@ -258,17 +222,16 @@ func NodeSuccess(tag, description string) error {
 		return fmt.Errorf("failed to set node error logs data: %v", err)
 	}
 
-	// 序列化数据
-	reportData, err := json.Marshal(reportDataReady)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info error data: %v", err)
 	}
-	return ReportBytes(reportData)
+	return ReportBytes(report_data)
 }
 
 // 节点 cpu/mem/disk 信息
 func NodeItem(item string, value interface{}) error {
-	report := ReportData{
+	ready := ReportData{
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
@@ -277,12 +240,12 @@ func NodeItem(item string, value interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report node item value: %v", err)
 	}
-	report.SetNodeItemData(ReportNodeItem{
+	ready.SetNodeItemData(ReportNodeItem{
 		Item:  item,
 		Value: string(item_value),
 	})
 
-	report_data, err := json.Marshal(report)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report node item: %v", err)
 	}
