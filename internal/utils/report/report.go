@@ -115,7 +115,7 @@ func ReportBytes(data []byte) error {
 		resp, err := client.Do(req)
 		if err != nil {
 			lastError = fmt.Errorf("failed to report to %s: %v", url, err)
-			fmt.Printf("Failed to report to %s: %v\n", url, err)
+			fmt.Printf("failed to report to %s: %v\n", url, err)
 			continue
 		}
 		defer resp.Body.Close()
