@@ -25,3 +25,4 @@ network_probe/.DS_Store
 network_probe
 /dist
 websocket_client
+/data

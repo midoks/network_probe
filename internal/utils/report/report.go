@@ -36,7 +36,7 @@ func init() {
 
 // uploadWorker 定时上传工作器
 func uploadWorker() {
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -277,8 +277,6 @@ func NodeItem(item string, value interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report node item value: %v", err)
 	}
-
-	fmt.Println("item", item, string(item_value))
 	report.SetNodeItemData(ReportNodeItem{
 		Item:  item,
 		Value: string(item_value),

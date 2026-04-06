@@ -1046,20 +1046,7 @@ func (s *Server) GetConfig() *config.Config {
 func (s *Server) Run(addr string) error {
 	logger.RewriteStderrFile()
 	//test
-	panic("panic error")
-
-	// 上报错误日志和崩溃日志
-	go func() {
-		if err := logger.ReportCrashLogs(); err != nil {
-			fmt.Printf("Failed to report crash logs: %v\n", err)
-		}
-
-		if err := logger.ReportErrorLogs(); err != nil {
-			fmt.Printf("Failed to report error logs: %v\n", err)
-		}
-
-		time.Sleep(2 * time.Second)
-	}()
+	// panic("panic error")
 
 	// 启动 HTTP 服务器
 	go func() {
