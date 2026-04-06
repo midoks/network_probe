@@ -13,9 +13,7 @@ import (
 
 // 全局 channel 用于控制定时上传
 type uploadTask struct {
-	reportType ReportType
-	subType    SubType
-	data       interface{}
+	data []byte
 }
 
 var (
@@ -46,7 +44,7 @@ func uploadWorker() {
 			fmt.Println("[LOG]定时上传任务触发")
 		case task := <-uploadChan:
 			// 处理实时上传任务
-			if err := Report(task.reportType, task.subType, task.data); err != nil {
+			if err := ReportBytes(task.data); err != nil {
 				fmt.Printf("[LOG]upload task failed: %v\n", err)
 			}
 		case <-stopChan:
@@ -66,9 +64,9 @@ func StopUploadWorker() {
 }
 
 // Report 上报数据
-func Report(reportType ReportType, subType SubType, data interface{}) error {
+func Report(data interface{}) error {
 	ready := ReportData{
-		Type:      reportType,
+		Type:      ReportTypeNode,
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
@@ -175,7 +173,15 @@ func NodeWarn(tag, description string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report warning data: %v", err)
 	}
-	return ReportBytes(report_data)
+
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	// return ReportBytes(report_data)
+	return nil
 }
 
 // 上报节点错误记录
@@ -200,7 +206,14 @@ func NodeError(tag, description string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info error data: %v", err)
 	}
-	return ReportBytes(report_data)
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	// return ReportBytes(report_data)
+	return nil
 }
 
 // 上报节点成功记录
@@ -226,7 +239,14 @@ func NodeSuccess(tag, description string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info error data: %v", err)
 	}
-	return ReportBytes(report_data)
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	// return ReportBytes(report_data)
+	return nil
 }
 
 // 节点 cpu/mem/disk 信息
@@ -249,7 +269,14 @@ func NodeItem(item string, value interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report node item: %v", err)
 	}
-	return ReportBytes(report_data)
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	// return ReportBytes(report_data)
+	return nil
 }
 
 func ReportRequest(data interface{}) error {
@@ -268,14 +295,38 @@ func ReportRequest(data interface{}) error {
 
 // ReportErrorLog 上报错误日志
 func ReportErrorLog(entry interface{}) error {
-	return Report(ReportTypeSystem, "error_log", map[string]interface{}{
+	data := map[string]interface{}{
 		"error": entry,
-	})
+	}
+	report_data, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report error log data: %v", err)
+	}
+
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	return nil
 }
 
 // ReportCrashLog 上报崩溃日志
 func ReportCrashLog(entry interface{}) error {
-	return Report(ReportTypeSystem, "crash_log", map[string]interface{}{
+	data := map[string]interface{}{
 		"crash": entry,
-	})
+	}
+	report_data, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report crash log data: %v", err)
+	}
+
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	return nil
 }
