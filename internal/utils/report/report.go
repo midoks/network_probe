@@ -119,7 +119,7 @@ func ReportBytes(data []byte) error {
 			continue
 		}
 		defer resp.Body.Close()
-		fmt.Printf("Reported to %s successfully: %v\n", url, resp.Status)
+		fmt.Printf("reported to %s successfully: %v\n", url, resp.Status)
 	}
 
 	return lastError
