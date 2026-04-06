@@ -131,7 +131,6 @@ func NodeInfo(tag, description string) error {
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-
 	fmt.Println("[" + tag + "]" + description)
 
 	// 设置节点日志数据
@@ -145,11 +144,18 @@ func NodeInfo(tag, description string) error {
 		return fmt.Errorf("failed to set node logs data: %v", err)
 	}
 
-	data, err := json.Marshal(ready)
+	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report info data: %v", err)
 	}
-	return ReportBytes(data)
+
+	select {
+	case uploadChan <- uploadTask{
+		data: report_data,
+	}:
+	default:
+	}
+	return nil
 }
 
 // 上报节点警告记录
@@ -168,7 +174,6 @@ func NodeWarn(tag, description string) error {
 		return fmt.Errorf("failed to set node warning logs data: %v", err)
 	}
 
-	// 序列化数据
 	report_data, err := json.Marshal(ready)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report warning data: %v", err)
@@ -180,7 +185,6 @@ func NodeWarn(tag, description string) error {
 	}:
 	default:
 	}
-	// return ReportBytes(report_data)
 	return nil
 }
 
@@ -212,7 +216,6 @@ func NodeError(tag, description string) error {
 	}:
 	default:
 	}
-	// return ReportBytes(report_data)
 	return nil
 }
 
@@ -245,7 +248,6 @@ func NodeSuccess(tag, description string) error {
 	}:
 	default:
 	}
-	// return ReportBytes(report_data)
 	return nil
 }
 
@@ -275,7 +277,6 @@ func NodeItem(item string, value interface{}) error {
 	}:
 	default:
 	}
-	// return ReportBytes(report_data)
 	return nil
 }
 
