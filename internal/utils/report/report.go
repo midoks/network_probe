@@ -11,7 +11,7 @@ import (
 	"network-probe/internal/version"
 )
 
-// 全局 channel 用于控制定时上传
+// 全局 用于控制定时上传
 type uploadTask struct {
 	data ReportData
 }
@@ -21,14 +21,14 @@ var (
 )
 
 func init() {
-	// 初始化 channel
+	// 初始化
 	uploadChan = make(chan uploadTask, 64)
 
-	// 启动定时上传 goroutine
+	// 启动定时上传
 	go uploadWorker()
 }
 
-// uploadWorker 定时上传工作器
+// 定时上传工作器
 func uploadWorker() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
