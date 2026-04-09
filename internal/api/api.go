@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -118,6 +119,10 @@ func (s *Server) setupRoutes() {
 
 	s.router.GET("/api/stats", func(c *gin.Context) {
 		current := atomic.LoadInt64(&activeConnections)
+
+		// 获取当前 Goroutine 数量
+		num := runtime.NumGoroutine()
+		fmt.Println("Current Goroutines:", num) // 输出: 11 (main + 10 个后台 goroutine)
 		c.JSON(http.StatusOK, gin.H{
 			"active_connections": current,
 		})

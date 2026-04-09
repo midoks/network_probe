@@ -7,42 +7,12 @@ import (
 // ReportType 表示上报类型
 type ReportType string
 
-// SubType 表示上报子类型
-type SubType string
-
 // 上报类型常量
 const (
-	// 系统信息上报类型
 	ReportTypeSystem   ReportType = "sys"
 	ReportTypeNode     ReportType = "node"
 	ReportTypeNodeItem ReportType = "node_item"
 	ReportTypeRequest  ReportType = "request"
-)
-
-const (
-	SystemInfo SubType = "info"
-
-	NodeWebSocketConnect    SubType = "websocket_connect"
-	NodeWebSocketDisconnect SubType = "websocket_disconnect"
-
-	// 功能请求上报类型
-	RequestPing                 SubType = "ping"
-	RequestTcping               SubType = "tcping"
-	RequestWebsite              SubType = "website"
-	RequestTraceroute           SubType = "traceroute"
-	RequestDns                  SubType = "dns"
-	RequestMtr                  SubType = "mtr"
-	RequestStartup              SubType = "startup"
-	RequestWebSocketPing        SubType = "websocket_ping"
-	RequestWebSocketTcping      SubType = "websocket_tcping"
-	RequestWebSocketWebsite     SubType = "websocket_website"
-	RequestWebSocketTraceroute  SubType = "websocket_traceroute"
-	RequestWebSocketDns         SubType = "websocket_dns"
-	RequestWebSocketMtr         SubType = "websocket_mtr"
-	RequestWebSocketMtrStart    SubType = "websocket_mtr_start"
-	RequestWebSocketMtrComplete SubType = "websocket_mtr_complete"
-	RequestCliPing              SubType = "cli_ping"
-	RequestCliTcping            SubType = "cli_tcping"
 )
 
 // ReportData 表示上报数据结构

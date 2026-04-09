@@ -13,7 +13,7 @@ import (
 
 // 全局 channel 用于控制定时上传
 type uploadTask struct {
-	data []byte
+	data ReportData
 }
 
 var (
@@ -30,11 +30,10 @@ func init() {
 
 // uploadWorker 定时上传工作器
 func uploadWorker() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		fmt.Println("[LOG]定时上传任务触发")
 		uploadLogs()
 	}
 
@@ -45,13 +44,20 @@ Loop:
 	for {
 		select {
 		case task := <-uploadChan:
-			// 处理实时上传任务
-			fmt.Println("data;", string(task.data))
-			if err := ReportBytes(task.data); err != nil {
+			dataBytes, err := json.Marshal(task.data)
+			if err != nil {
+				fmt.Printf("[LOG]failed to marshal report data: %v\n", err)
+				continue
+			}
+			// fmt.Println("data;", string(dataBytes))
+			if err := ReportBytes(dataBytes); err != nil {
 				fmt.Printf("[LOG]upload task failed: %v\n", err)
 			}
-			return nil
+
+			// task_cap := len(uploadChan)
+			// fmt.Println("task cap:", task_cap)
 		default:
+			//loop end
 			break Loop
 		}
 	}
@@ -126,9 +132,6 @@ func NodeInfo(tag, description string) error {
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-	fmt.Println("[" + tag + "]" + description)
-
-	// 设置节点日志数据
 	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "info",
@@ -139,14 +142,9 @@ func NodeInfo(tag, description string) error {
 		return fmt.Errorf("failed to set node logs data: %v", err)
 	}
 
-	report_data, err := json.Marshal(ready)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report info data: %v", err)
-	}
-
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -169,14 +167,9 @@ func NodeWarn(tag, description string) error {
 		return fmt.Errorf("failed to set node warning logs data: %v", err)
 	}
 
-	report_data, err := json.Marshal(ready)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report warning data: %v", err)
-	}
-
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -189,7 +182,6 @@ func NodeError(tag, description string) error {
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-	// fmt.Println("[" + tag + "]" + description)
 
 	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
@@ -201,13 +193,9 @@ func NodeError(tag, description string) error {
 		return fmt.Errorf("failed to set node error logs data: %v", err)
 	}
 
-	report_data, err := json.Marshal(ready)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report info error data: %v", err)
-	}
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -220,9 +208,7 @@ func NodeSuccess(tag, description string) error {
 		Timestamp: time.Now().Unix(),
 		Version:   version.Version,
 	}
-	fmt.Println("[" + tag + "]" + description)
-
-	// 设置节点日志数据
+	// fmt.Println("[" + tag + "]" + description)
 	err := ready.SetNodeLogsData(ReportNodeLogs{
 		Tag:         tag,
 		Level:       "success",
@@ -233,13 +219,9 @@ func NodeSuccess(tag, description string) error {
 		return fmt.Errorf("failed to set node error logs data: %v", err)
 	}
 
-	report_data, err := json.Marshal(ready)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report info error data: %v", err)
-	}
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -262,13 +244,9 @@ func NodeItem(item string, value interface{}) error {
 		Value: string(item_value),
 	})
 
-	report_data, err := json.Marshal(ready)
-	if err != nil {
-		return fmt.Errorf("failed to marshal report node item: %v", err)
-	}
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -291,6 +269,11 @@ func ReportRequest(data interface{}) error {
 
 // ReportErrorLog 上报错误日志
 func ReportErrorLog(entry interface{}) error {
+	ready := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
 	data := map[string]interface{}{
 		"error": entry,
 	}
@@ -298,10 +281,11 @@ func ReportErrorLog(entry interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report error log data: %v", err)
 	}
+	ready.Data = string(report_data)
 
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
@@ -310,6 +294,11 @@ func ReportErrorLog(entry interface{}) error {
 
 // ReportCrashLog 上报崩溃日志
 func ReportCrashLog(entry interface{}) error {
+	ready := ReportData{
+		Timestamp: time.Now().Unix(),
+		Version:   version.Version,
+	}
+
 	data := map[string]interface{}{
 		"crash": entry,
 	}
@@ -317,10 +306,11 @@ func ReportCrashLog(entry interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal report crash log data: %v", err)
 	}
+	ready.Data = string(report_data)
 
 	select {
 	case uploadChan <- uploadTask{
-		data: report_data,
+		data: ready,
 	}:
 	default:
 	}
