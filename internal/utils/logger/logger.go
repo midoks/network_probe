@@ -268,29 +268,6 @@ func ReportErrorLogs() error {
 	return ClearErrorLogs()
 }
 
-// ReportCrashLogs 上报崩溃日志
-func ReportCrashLogs() error {
-	entries, err := ReadCrashLogs()
-	if err != nil {
-		return fmt.Errorf("failed to read crash logs: %v", err)
-	}
-
-	if len(entries) == 0 {
-		return nil
-	}
-
-	// 上报每个崩溃日志条目
-	for _, entry := range entries {
-		if err := report.ReportCrashLog(entry); err != nil {
-			fmt.Printf("Failed to report crash log: %v\n", err)
-			continue
-		}
-	}
-
-	// 清除已上报的崩溃日志
-	return ClearCrashLogs()
-}
-
 // splitLines 分割数据为行
 func splitLines(data []byte) [][]byte {
 	var lines [][]byte
