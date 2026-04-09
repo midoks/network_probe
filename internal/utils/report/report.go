@@ -64,7 +64,7 @@ Loop:
 	return nil
 }
 
-// Report 上报数据
+// 上报数据
 func Report(data interface{}) error {
 	ready := ReportData{
 		Type:      ReportTypeNode,
