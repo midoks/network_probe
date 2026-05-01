@@ -58,7 +58,7 @@ release:
   prerelease: false
 
 snapshot:
-  name_template: "{{ .Tag }}"
+  name_template: "v1.0"
 changelog:
   sort: asc
   filters:
