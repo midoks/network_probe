@@ -59,9 +59,11 @@ func RewriteStderrFile() error {
 		}
 	}
 
-	if err = syscall.Dup2(int(file.Fd()), int(os.Stderr.Fd())); err != nil {
+	stderrFd, err := syscall.Dup(int(file.Fd()))
+	if err != nil {
 		return err
 	}
+	os.Stderr = os.NewFile(uintptr(stderrFd), "/dev/stderr")
 
 	runtime.SetFinalizer(stdErrFileHandler, func(fd *os.File) {
 		fd.Close()
