@@ -716,6 +716,12 @@ func handleInstall(cli *Cli) error {
 		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 
+	// 获取当前工作目录
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %v", err)
+	}
+
 	// 创建 systemd 服务文件内容
 	serviceFileContent := fmt.Sprintf(`[Unit]
 Description=Network Probe Service
@@ -723,6 +729,7 @@ After=network.target
 
 [Service]
 Type=simple
+WorkingDirectory=%s
 ExecStart=%s server -p %d
 Restart=always
 RestartSec=5
@@ -730,7 +737,7 @@ User=root
 
 [Install]
 WantedBy=multi-user.target
-`, execPath, port)
+`, workingDir, execPath, port)
 
 	// 服务文件路径
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
