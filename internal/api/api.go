@@ -74,10 +74,10 @@ func NewServer() *Server {
 	if err != nil {
 		fmt.Printf("Warning: failed to load config: %v, using defaults\n", err)
 		cfg = &config.Config{
-			Port:            8080,
-			NodeID:          "default",
-			Secret:          "",
-			ReportEndpoints: []string{},
+			Port:         8080,
+			NodeID:       "default",
+			Secret:       "",
+			RpcEndpoints: []string{},
 		}
 	}
 

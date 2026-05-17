@@ -3,17 +3,18 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Config 表示应用配置
 type Config struct {
-	Debug           bool     `yaml:"debug"`
-	Port            int      `yaml:"port"`
-	NodeID          string   `yaml:"nodeId"`
-	Secret          string   `yaml:"secret"`
-	ReportEndpoints []string `yaml:"report.endpoints"`
+	Debug        bool     `yaml:"debug"`
+	Port         int      `yaml:"port"`
+	NodeID       string   `yaml:"nodeId"`
+	Secret       string   `yaml:"secret"`
+	RpcEndpoints []string `yaml:"rpc.endpoints"`
 }
 
 // LoadConfig 从文件加载配置
@@ -40,9 +41,24 @@ func LoadConfig(path string) (*Config, error) {
 func GetConfigPath() string {
 	// 首先检查环境变量
 	if path := os.Getenv("NETWORK_PROBE_CONFIG"); path != "" {
-		return path
+		if filepath.IsAbs(path) {
+			return path
+		}
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return path
+		}
+		return absPath
 	}
 
-	// 默认路径
-	return "config/api_node.yaml"
+	// 默认路径，转换为绝对路径
+	defaultPath := "config/api_node.yaml"
+	if filepath.IsAbs(defaultPath) {
+		return defaultPath
+	}
+	absPath, err := filepath.Abs(defaultPath)
+	if err != nil {
+		return defaultPath
+	}
+	return absPath
 }

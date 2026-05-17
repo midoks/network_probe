@@ -26,3 +26,4 @@ network_probe
 /dist
 websocket_client
 /data
+.*.sh

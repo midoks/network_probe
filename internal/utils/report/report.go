@@ -89,16 +89,17 @@ func Report(data interface{}) error {
 func ReportBytes(data []byte) error {
 	cfg, err := config.LoadConfig(config.GetConfigPath())
 	if err != nil {
+		fmt.Printf("failed to load config: %v", err)
 		return fmt.Errorf("failed to load config: %v", err)
 	}
 
-	if len(cfg.ReportEndpoints) == 0 {
+	if len(cfg.RpcEndpoints) == 0 {
 		return fmt.Errorf("no report endpoints configured")
 	}
 
 	// 上报到每个端点（同步）
 	var lastError error
-	for _, endpoint := range cfg.ReportEndpoints {
+	for _, endpoint := range cfg.RpcEndpoints {
 
 		url := endpoint + "/api/logs"
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
